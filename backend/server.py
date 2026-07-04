@@ -402,8 +402,26 @@ async def update_booking(bid: str, patch: StatusPatch, user: User = Depends(get_
         raise HTTPException(status_code=404, detail="Not found")
     if doc["landlord_id"] != user.user_id and doc["tenant_id"] != user.user_id:
         raise HTTPException(status_code=403, detail="Not allowed")
+    # Only the landlord can accept/decline; tenant can only cancel their own
+    if patch.status in ("accepted", "declined") and doc["landlord_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Only landlord can accept/decline")
     await db.bookings.update_one({"booking_id": bid}, {"$set": {"status": patch.status}})
     doc["status"] = patch.status
+
+    # When landlord accepts: mark property as rented + auto-decline other pending requests
+    if patch.status == "accepted":
+        await db.properties.update_one(
+            {"property_id": doc["property_id"]},
+            {"$set": {"status": "rented"}},
+        )
+        await db.bookings.update_many(
+            {
+                "property_id": doc["property_id"],
+                "booking_id": {"$ne": bid},
+                "status": "pending",
+            },
+            {"$set": {"status": "declined"}},
+        )
     return Booking(**doc)
 
 
