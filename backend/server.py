@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -647,8 +648,6 @@ async def create_review(inp: ReviewIn, user: User = Depends(get_current_user)):
 
 
 # =============== KYC (verification) ===============
-import asyncio
-
 async def _auto_approve_kyc(user_id: str):
     await asyncio.sleep(5)
     await db.users.update_one({"user_id": user_id}, {"$set": {"kyc_status": "verified"}})
