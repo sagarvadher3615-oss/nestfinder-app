@@ -10,6 +10,11 @@ import { colors, spacing, radius, type } from "@/src/lib/theme";
 
 const TYPES = ["1BHK", "2BHK", "3BHK", "Single Room", "PG/Hostel"];
 const AMENITIES_ALL = ["WiFi", "AC", "Kitchen", "Parking", "Balcony", "Gym", "Swimming Pool", "Security", "Meals", "Laundry", "Furnished", "Power Backup", "Lift"];
+const STATUSES: { value: "available" | "rented" | "owned"; label: string; sub: string }[] = [
+  { value: "available", label: "Available", sub: "Open for bookings" },
+  { value: "rented", label: "Rented Out", sub: "Already leased" },
+  { value: "owned", label: "Occupied", sub: "I live here / off market" },
+];
 
 export default function NewProperty() {
   const router = useRouter();
@@ -22,6 +27,7 @@ export default function NewProperty() {
   const [desc, setDesc] = useState("");
   const [amenities, setAmenities] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
+  const [status, setStatus] = useState<"available" | "rented" | "owned">("available");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -56,6 +62,7 @@ export default function NewProperty() {
         description: desc,
         amenities,
         images,
+        status,
       });
       router.replace("/(tabs)");
     } catch (e: any) {
@@ -112,6 +119,24 @@ export default function NewProperty() {
               </Pressable>
             ))}
           </ScrollView>
+
+          <Text style={styles.label}>Listing status</Text>
+          <View style={styles.statusCol}>
+            {STATUSES.map(s => {
+              const on = status === s.value;
+              return (
+                <Pressable key={s.value} onPress={() => setStatus(s.value)} style={[styles.statusRow, on && styles.statusRowActive]} testID={`status-${s.value}`}>
+                  <View style={[styles.statusDot, on && styles.statusDotActive]}>
+                    {on && <View style={styles.statusDotInner} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.statusLabel, on && { color: colors.brand, fontWeight: "500" }]}>{s.label}</Text>
+                    <Text style={styles.statusSub}>{s.sub}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <View style={styles.row2}>
             <View style={{ flex: 1 }}>
@@ -179,4 +204,12 @@ const styles = StyleSheet.create({
   addPhotoTxt: { fontSize: type.sm, color: colors.brand },
   photoItem: { marginRight: spacing.sm, position: "relative" },
   removePhoto: { position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  statusCol: { gap: spacing.sm, marginTop: spacing.xs, marginBottom: spacing.sm },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: "transparent" },
+  statusRowActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
+  statusDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
+  statusDotActive: { borderColor: colors.brand },
+  statusDotInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand },
+  statusLabel: { fontSize: type.base, color: colors.onSurface },
+  statusSub: { fontSize: type.sm, color: colors.textSecondary, marginTop: 2 },
 });

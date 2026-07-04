@@ -39,6 +39,18 @@ export default function PropertyDetail() {
     finally { setBusy(false); }
   };
 
+  const cycleStatus = async () => {
+    if (!prop) return;
+    const order: Array<"available" | "rented" | "owned"> = ["available", "rented", "owned"];
+    const next = order[(order.indexOf(prop.status) + 1) % 3];
+    setBusy(true);
+    try {
+      const updated = await api.patch(`/properties/${prop.property_id}/status`, { status: next });
+      setProp(updated);
+    } catch (e) { console.warn(e); }
+    finally { setBusy(false); }
+  };
+
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} /></View>;
   if (!prop) return <View style={styles.center}><Text>Property not found</Text></View>;
 
@@ -125,9 +137,20 @@ export default function PropertyDetail() {
           <Text style={styles.price}>₹{prop.price.toLocaleString("en-IN")}</Text>
         </View>
         {isOwner ? (
-          <Pressable style={styles.deleteBtn} onPress={remove} disabled={busy} testID="detail-delete-btn">
-            {busy ? <ActivityIndicator color="#fff" /> : <><Ionicons name="trash-outline" size={18} color="#fff" /><Text style={styles.deleteTxt}>Delete</Text></>}
-          </Pressable>
+          <View style={styles.ownerActions}>
+            <Pressable style={styles.statusToggle} onPress={cycleStatus} disabled={busy} testID="detail-status-toggle">
+              <Ionicons name="swap-horizontal" size={16} color={colors.brand} />
+              <Text style={styles.statusToggleTxt}>{prop.status === "available" ? "Available" : prop.status === "rented" ? "Rented" : "Occupied"}</Text>
+            </Pressable>
+            <Pressable style={styles.deleteBtn} onPress={remove} disabled={busy} testID="detail-delete-btn">
+              {busy ? <ActivityIndicator color="#fff" /> : <><Ionicons name="trash-outline" size={18} color="#fff" /><Text style={styles.deleteTxt}>Delete</Text></>}
+            </Pressable>
+          </View>
+        ) : prop.status !== "available" ? (
+          <View style={styles.unavailBtn} testID="detail-unavailable">
+            <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
+            <Text style={styles.unavailTxt}>Not available</Text>
+          </View>
         ) : (
           <Pressable style={styles.bookBtn} onPress={() => router.push(`/property/${prop.property_id}/book` as any)} testID="detail-book-btn">
             <Text style={styles.bookTxt}>Book Now</Text>
@@ -151,8 +174,13 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.5)" },
   dotActive: { backgroundColor: "#fff", width: 18 },
   body: { padding: spacing.lg, marginTop: -20, backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   badge: { alignSelf: "flex-start", backgroundColor: colors.brandTertiary, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
   badgeTxt: { fontSize: type.sm, color: colors.brand, fontWeight: "500" },
+  statusBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
+  statusRented: { backgroundColor: "#A85751" },
+  statusOwned: { backgroundColor: "#4A544C" },
+  statusBadgeTxt: { color: "#fff", fontSize: type.sm, fontWeight: "500" },
   title: { fontSize: 24, color: colors.onSurface, fontWeight: "500", marginTop: spacing.sm },
   locRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
   locTxt: { fontSize: type.base, color: colors.textSecondary },
@@ -184,6 +212,11 @@ const styles = StyleSheet.create({
   price: { fontSize: 22, color: colors.onSurface, fontWeight: "500" },
   bookBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: 14, borderRadius: radius.md },
   bookTxt: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
-  deleteBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.error, paddingHorizontal: spacing.xl, paddingVertical: 14, borderRadius: radius.md },
-  deleteTxt: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
+  deleteBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.error, paddingHorizontal: spacing.lg, paddingVertical: 14, borderRadius: radius.md },
+  deleteTxt: { color: "#fff", fontSize: type.base, fontWeight: "500" },
+  ownerActions: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  statusToggle: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.md, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brand },
+  statusToggleTxt: { color: colors.brand, fontSize: type.base, fontWeight: "500" },
+  unavailBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceTertiary, paddingHorizontal: spacing.xl, paddingVertical: 14, borderRadius: radius.md },
+  unavailTxt: { color: colors.textSecondary, fontSize: type.lg, fontWeight: "500" },
 });

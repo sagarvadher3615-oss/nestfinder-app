@@ -18,8 +18,9 @@ A mobile marketplace for monthly room and property rentals that connects tenants
 ### Property Marketplace
 - 8 seed properties across Bangalore, Pune, Mumbai; 2 demo users (tenant + landlord).
 - List with filters: `q` (title/location), `property_type`, `min_price`, `max_price`, `bedrooms`.
-- Detail view: image gallery (swipeable), amenities grid, verified landlord card, sticky Book Now bar.
-- Landlords can create (photo picker → base64), view mine, and delete their own listings.
+- **Listing status** — landlords mark each property as `available`, `rented`, or `owned` (occupied). Non-available properties still appear in the feed with a badge but the Book Now button is replaced with "Not available". Landlords can toggle status from the detail screen.
+- Detail view: image gallery (swipeable), amenities grid, verified landlord card, sticky Book Now bar (or Not-available lock).
+- Landlords can create (photo picker → base64), view mine, toggle status, and delete their own listings.
 
 ### Bookings
 - Tenant submits name / phone / move-in date → status `pending`.

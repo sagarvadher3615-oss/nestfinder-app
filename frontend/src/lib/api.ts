@@ -48,6 +48,7 @@ export type Property = {
   description: string;
   amenities: string[];
   images: string[];
+  status: "available" | "rented" | "owned";
   landlord_id: string;
   landlord_name: string;
   created_at: string;

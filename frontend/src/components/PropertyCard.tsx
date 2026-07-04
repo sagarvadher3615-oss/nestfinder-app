@@ -22,6 +22,14 @@ export function PropertyCard({ item, testIDPrefix = "prop" }: { item: Property; 
           style={StyleSheet.absoluteFillObject}
         />
         <View style={styles.badge}><Text style={styles.badgeTxt}>{item.property_type}</Text></View>
+        {item.status !== "available" && (
+          <View style={styles.statusOverlay}>
+            <View style={[styles.statusPill, item.status === "rented" ? styles.pillRented : styles.pillOwned]}>
+              <Ionicons name={item.status === "rented" ? "key" : "home"} size={12} color="#fff" />
+              <Text style={styles.statusPillTxt}>{item.status === "rented" ? "Rented Out" : "Occupied"}</Text>
+            </View>
+          </View>
+        )}
         <View style={styles.imgBottom}>
           <Text style={styles.imgTitle} numberOfLines={1}>{item.title}</Text>
           <View style={styles.locRow}>
@@ -57,6 +65,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill,
   },
   badgeTxt: { fontSize: type.sm, color: colors.brand, fontWeight: "500" },
+  statusOverlay: { position: "absolute", top: spacing.md, right: spacing.md },
+  statusPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
+  pillRented: { backgroundColor: "#A85751" },
+  pillOwned: { backgroundColor: "#4A544C" },
+  statusPillTxt: { color: "#fff", fontSize: type.sm, fontWeight: "500" },
   imgBottom: { position: "absolute", left: spacing.md, right: spacing.md, bottom: spacing.md },
   imgTitle: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
   locRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },

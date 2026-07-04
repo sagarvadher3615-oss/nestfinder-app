@@ -37,6 +37,7 @@ logger = logging.getLogger("nestfinder")
 # =============== Models ===============
 Role = Literal["tenant", "landlord"]
 PropertyType = Literal["Single Room", "1BHK", "2BHK", "3BHK", "PG/Hostel"]
+PropertyStatus = Literal["available", "rented", "owned"]
 BookingStatus = Literal["pending", "accepted", "declined", "cancelled"]
 
 
@@ -84,6 +85,7 @@ class PropertyIn(BaseModel):
     description: str = ""
     amenities: List[str] = []
     images: List[str] = []  # base64 strings or URLs
+    status: PropertyStatus = "available"
 
 
 class Property(PropertyIn):
@@ -343,12 +345,29 @@ async def delete_property(pid: str, user: User = Depends(get_current_user)):
     return {"ok": True}
 
 
+@api.patch("/properties/{pid}/status", response_model=Property)
+async def update_property_status(pid: str, body: dict, user: User = Depends(get_current_user)):
+    status = body.get("status")
+    if status not in ("available", "rented", "owned"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    doc = await db.properties.find_one({"property_id": pid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    if doc["landlord_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not your property")
+    await db.properties.update_one({"property_id": pid}, {"$set": {"status": status}})
+    doc["status"] = status
+    return Property(**doc)
+
+
 # =============== Booking endpoints ===============
 @api.post("/bookings", response_model=Booking)
 async def create_booking(inp: BookingIn, user: User = Depends(get_current_user)):
     prop = await db.properties.find_one({"property_id": inp.property_id}, {"_id": 0})
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
+    if prop.get("status", "available") != "available":
+        raise HTTPException(status_code=400, detail="This property is not available for booking")
     booking = Booking(
         booking_id=f"bk_{uuid.uuid4().hex[:12]}",
         property_id=inp.property_id,
