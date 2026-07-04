@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.nestsearch.ybghsx"
+      "bundleIdentifier": "com.emergent.nestsearch.ybghsx",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Upload photos of your rental property"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +21,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.nestsearch.ybghsx"
+      "package": "com.emergent.nestsearch.ybghsx",
+      "permissions": ["READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE"]
     },
     "web": {
       "bundler": "metro",

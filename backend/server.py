@@ -1,75 +1,513 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import uuid
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List
-import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional, Literal
+
+import httpx
+import jwt
+import bcrypt
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Query
+from fastapi.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field, EmailStr
 
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ["DB_NAME"]]
 
-# Create the main app without a prefix
-app = FastAPI()
+JWT_SECRET = os.environ.get("JWT_SECRET", "nestfinder-secret-change-me")
+JWT_ALG = "HS256"
+JWT_EXP_DAYS = 30
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
+app = FastAPI(title="NestFinder API")
+api = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nestfinder")
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+# =============== Models ===============
+Role = Literal["tenant", "landlord"]
+PropertyType = Literal["Single Room", "1BHK", "2BHK", "3BHK", "PG/Hostel"]
+BookingStatus = Literal["pending", "accepted", "declined", "cancelled"]
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
+class User(BaseModel):
+    user_id: str
+    name: str
+    email: str
+    phone: Optional[str] = None
+    role: Role
+    avatar: Optional[str] = None
+    auth_provider: str = "password"  # or "google"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class RegisterIn(BaseModel):
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    password: str
+    role: Role
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class GoogleSessionIn(BaseModel):
+    session_token: str
+    role: Optional[Role] = "tenant"
+
+
+class TokenOut(BaseModel):
+    token: str
+    user: User
+
+
+class PropertyIn(BaseModel):
+    title: str
+    location: str
+    price: float
+    property_type: PropertyType
+    bedrooms: int
+    bathrooms: int = 1
+    description: str = ""
+    amenities: List[str] = []
+    images: List[str] = []  # base64 strings or URLs
+
+
+class Property(PropertyIn):
+    property_id: str
+    landlord_id: str
+    landlord_name: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class BookingIn(BaseModel):
+    property_id: str
+    tenant_name: str
+    tenant_phone: str
+    move_in_date: str  # ISO date
+
+
+class Booking(BaseModel):
+    booking_id: str
+    property_id: str
+    property_title: str
+    property_image: Optional[str] = None
+    landlord_id: str
+    tenant_id: str
+    tenant_name: str
+    tenant_phone: str
+    move_in_date: str
+    status: BookingStatus = "pending"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class StatusPatch(BaseModel):
+    status: BookingStatus
+
+
+# =============== Auth utils ===============
+def hash_pw(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_pw(pw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode(), hashed.encode())
+    except Exception:
+        return False
+
+
+def make_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXP_DAYS),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+
+async def get_current_user(request: Request) -> User:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing token")
+    token = auth[7:]
+
+    # try emergent session_token first
+    sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if sess:
+        exp = sess.get("expires_at")
+        if exp and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp and exp < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Session expired")
+        user_doc = await db.users.find_one({"user_id": sess["user_id"]}, {"_id": 0, "password_hash": 0})
+        if not user_doc:
+            raise HTTPException(status_code=401, detail="User not found")
+        return User(**user_doc)
+
+    # try JWT
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        uid = payload["sub"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user_doc = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="User not found")
+    return User(**user_doc)
+
+
+# =============== Auth endpoints ===============
+@api.post("/auth/register", response_model=TokenOut)
+async def register(inp: RegisterIn):
+    existing = await db.users.find_one({"email": inp.email.lower()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    user_doc = {
+        "user_id": user_id,
+        "name": inp.name.strip(),
+        "email": inp.email.lower(),
+        "phone": inp.phone,
+        "role": inp.role,
+        "avatar": None,
+        "auth_provider": "password",
+        "password_hash": hash_pw(inp.password),
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.users.insert_one(user_doc)
+    token = make_token(user_id)
+    user_doc.pop("password_hash", None)
+    user_doc.pop("_id", None)
+    return TokenOut(token=token, user=User(**user_doc))
+
+
+@api.post("/auth/login", response_model=TokenOut)
+async def login(inp: LoginIn):
+    doc = await db.users.find_one({"email": inp.email.lower()}, {"_id": 0})
+    if not doc or not doc.get("password_hash"):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_pw(inp.password, doc["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = make_token(doc["user_id"])
+    doc.pop("password_hash", None)
+    return TokenOut(token=token, user=User(**doc))
+
+
+@api.post("/auth/session", response_model=TokenOut)
+async def google_session(inp: GoogleSessionIn):
+    # Verify with Emergent
+    async with httpx.AsyncClient(timeout=15) as hc:
+        r = await hc.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": inp.session_token},
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Google auth failed")
+    data = r.json()
+    email = data.get("email", "").lower()
+    if not email:
+        raise HTTPException(status_code=401, detail="Missing email from Google")
+
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing["user_id"]
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "name": data.get("name") or email.split("@")[0],
+            "email": email,
+            "phone": None,
+            "role": inp.role or "tenant",
+            "avatar": data.get("picture"),
+            "auth_provider": "google",
+            "created_at": datetime.now(timezone.utc),
+        })
+
+    # store session
+    await db.user_sessions.update_one(
+        {"session_token": data["session_token"]},
+        {"$set": {
+            "session_token": data["session_token"],
+            "user_id": user_id,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        }},
+        upsert=True,
+    )
+    doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return TokenOut(token=data["session_token"], user=User(**doc))
+
+
+@api.get("/auth/me", response_model=User)
+async def me(user: User = Depends(get_current_user)):
+    return user
+
+
+@api.post("/auth/logout")
+async def logout(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:]
+        await db.user_sessions.delete_one({"session_token": token})
+    return {"ok": True}
+
+
+@api.patch("/auth/role")
+async def update_role(body: dict, user: User = Depends(get_current_user)):
+    role = body.get("role")
+    if role not in ("tenant", "landlord"):
+        raise HTTPException(status_code=400, detail="Invalid role")
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"role": role}})
+    return {"ok": True, "role": role}
+
+
+# =============== Property endpoints ===============
+@api.get("/properties", response_model=List[Property])
+async def list_properties(
+    q: Optional[str] = None,
+    property_type: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    bedrooms: Optional[int] = None,
+    limit: int = Query(50, le=100),
+):
+    query = {}
+    if q:
+        query["$or"] = [
+            {"title": {"$regex": q, "$options": "i"}},
+            {"location": {"$regex": q, "$options": "i"}},
+        ]
+    if property_type and property_type != "All":
+        query["property_type"] = property_type
+    if min_price is not None:
+        query.setdefault("price", {})["$gte"] = min_price
+    if max_price is not None:
+        query.setdefault("price", {})["$lte"] = max_price
+    if bedrooms is not None:
+        query["bedrooms"] = bedrooms
+    docs = await db.properties.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return [Property(**d) for d in docs]
+
+
+@api.get("/properties/mine", response_model=List[Property])
+async def my_properties(user: User = Depends(get_current_user)):
+    docs = await db.properties.find({"landlord_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return [Property(**d) for d in docs]
+
+
+@api.get("/properties/{pid}", response_model=Property)
+async def get_property(pid: str):
+    doc = await db.properties.find_one({"property_id": pid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Property not found")
+    return Property(**doc)
+
+
+@api.post("/properties", response_model=Property)
+async def create_property(inp: PropertyIn, user: User = Depends(get_current_user)):
+    if user.role != "landlord":
+        raise HTTPException(status_code=403, detail="Only landlords can add properties")
+    prop = Property(
+        property_id=f"prop_{uuid.uuid4().hex[:12]}",
+        landlord_id=user.user_id,
+        landlord_name=user.name,
+        **inp.dict(),
+    )
+    await db.properties.insert_one(prop.dict())
+    return prop
+
+
+@api.delete("/properties/{pid}")
+async def delete_property(pid: str, user: User = Depends(get_current_user)):
+    doc = await db.properties.find_one({"property_id": pid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    if doc["landlord_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not your property")
+    await db.properties.delete_one({"property_id": pid})
+    return {"ok": True}
+
+
+# =============== Booking endpoints ===============
+@api.post("/bookings", response_model=Booking)
+async def create_booking(inp: BookingIn, user: User = Depends(get_current_user)):
+    prop = await db.properties.find_one({"property_id": inp.property_id}, {"_id": 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    booking = Booking(
+        booking_id=f"bk_{uuid.uuid4().hex[:12]}",
+        property_id=inp.property_id,
+        property_title=prop["title"],
+        property_image=(prop.get("images") or [None])[0],
+        landlord_id=prop["landlord_id"],
+        tenant_id=user.user_id,
+        tenant_name=inp.tenant_name,
+        tenant_phone=inp.tenant_phone,
+        move_in_date=inp.move_in_date,
+    )
+    await db.bookings.insert_one(booking.dict())
+    return booking
+
+
+@api.get("/bookings/mine", response_model=List[Booking])
+async def my_bookings(user: User = Depends(get_current_user)):
+    docs = await db.bookings.find({"tenant_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return [Booking(**d) for d in docs]
+
+
+@api.get("/bookings/landlord", response_model=List[Booking])
+async def landlord_bookings(user: User = Depends(get_current_user)):
+    docs = await db.bookings.find({"landlord_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return [Booking(**d) for d in docs]
+
+
+@api.patch("/bookings/{bid}", response_model=Booking)
+async def update_booking(bid: str, patch: StatusPatch, user: User = Depends(get_current_user)):
+    doc = await db.bookings.find_one({"booking_id": bid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    if doc["landlord_id"] != user.user_id and doc["tenant_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    await db.bookings.update_one({"booking_id": bid}, {"$set": {"status": patch.status}})
+    doc["status"] = patch.status
+    return Booking(**doc)
+
+
+# =============== Seed data ===============
+SEED_IMAGES = {
+    "1": "https://images.unsplash.com/photo-1560185893-a55cbc8c57e8?w=1200",
+    "2": "https://images.pexels.com/photos/18153132/pexels-photo-18153132.jpeg?w=1200",
+    "3": "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200",
+    "4": "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200",
+    "5": "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=1200",
+    "6": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=1200",
+    "7": "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=1200",
+    "8": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200",
+    "9": "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200",
+}
+
+
+async def seed_data():
+    users_count = await db.users.count_documents({})
+    if users_count > 0:
+        return
+
+    # Demo landlord
+    landlord_id = "user_demo_landlord"
+    await db.users.insert_one({
+        "user_id": landlord_id,
+        "name": "Priya Sharma",
+        "email": "landlord@nestfinder.app",
+        "phone": "+919876543210",
+        "role": "landlord",
+        "avatar": "https://images.pexels.com/photos/10816007/pexels-photo-10816007.jpeg?w=400",
+        "auth_provider": "password",
+        "password_hash": hash_pw("Demo123!"),
+        "created_at": datetime.now(timezone.utc),
+    })
+    # Demo tenant
+    tenant_id = "user_demo_tenant"
+    await db.users.insert_one({
+        "user_id": tenant_id,
+        "name": "Rahul Mehta",
+        "email": "tenant@nestfinder.app",
+        "phone": "+919876500000",
+        "role": "tenant",
+        "avatar": None,
+        "auth_provider": "password",
+        "password_hash": hash_pw("Demo123!"),
+        "created_at": datetime.now(timezone.utc),
+    })
+
+    seed_props = [
+        ("Sunny 1BHK near Metro", "Koramangala, Bangalore", 18000, "1BHK", 1, 1,
+         "Bright and airy 1BHK apartment just 5 mins walk from the metro station. Fully furnished with modern amenities.",
+         ["WiFi", "AC", "Kitchen", "Parking"], [SEED_IMAGES["1"], SEED_IMAGES["3"]]),
+        ("Modern 2BHK with Balcony", "HSR Layout, Bangalore", 32000, "2BHK", 2, 2,
+         "Spacious 2BHK with balcony views, perfect for small families or working professionals.",
+         ["WiFi", "AC", "Balcony", "Gym", "Parking"], [SEED_IMAGES["2"], SEED_IMAGES["4"]]),
+        ("Cozy Single Room", "Indiranagar, Bangalore", 9500, "Single Room", 1, 1,
+         "Compact fully furnished room ideal for students or bachelors. Includes power backup.",
+         ["WiFi", "Furnished", "Power Backup"], [SEED_IMAGES["5"]]),
+        ("Premium 3BHK Family Home", "Whitefield, Bangalore", 55000, "3BHK", 3, 3,
+         "Luxurious 3BHK in a gated community with clubhouse, swimming pool, and 24/7 security.",
+         ["WiFi", "AC", "Swimming Pool", "Gym", "Security", "Parking"], [SEED_IMAGES["6"], SEED_IMAGES["9"]]),
+        ("Girls PG - Fully Furnished", "BTM Layout, Bangalore", 8500, "PG/Hostel", 1, 1,
+         "Safe and comfortable PG for working women with meals, WiFi, and 24/7 security.",
+         ["WiFi", "Meals", "Laundry", "Security"], [SEED_IMAGES["7"]]),
+        ("Bright 1BHK Studio", "MG Road, Pune", 15500, "1BHK", 1, 1,
+         "Modern studio-style 1BHK in the heart of Pune. Walk to cafes, offices, and metro.",
+         ["WiFi", "AC", "Kitchen"], [SEED_IMAGES["8"]]),
+        ("Spacious 2BHK", "Andheri West, Mumbai", 42000, "2BHK", 2, 2,
+         "Well-ventilated 2BHK apartment with easy access to the metro and local shops.",
+         ["WiFi", "AC", "Parking", "Lift"], [SEED_IMAGES["3"], SEED_IMAGES["2"]]),
+        ("Boys PG Near Tech Park", "Marathahalli, Bangalore", 7500, "PG/Hostel", 1, 1,
+         "Budget-friendly PG for working professionals. Meals included, near IT parks.",
+         ["WiFi", "Meals", "Laundry"], [SEED_IMAGES["4"]]),
+    ]
+
+    for (title, location, price, ptype, beds, baths, desc, amens, imgs) in seed_props:
+        await db.properties.insert_one({
+            "property_id": f"prop_{uuid.uuid4().hex[:12]}",
+            "title": title,
+            "location": location,
+            "price": price,
+            "property_type": ptype,
+            "bedrooms": beds,
+            "bathrooms": baths,
+            "description": desc,
+            "amenities": amens,
+            "images": imgs,
+            "landlord_id": landlord_id,
+            "landlord_name": "Priya Sharma",
+            "created_at": datetime.now(timezone.utc),
+        })
+
+    logger.info("Seed data inserted: 2 users, 8 properties")
+
+
+@app.on_event("startup")
+async def on_startup():
+    # indexes
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("user_id", unique=True)
+    await db.user_sessions.create_index("session_token", unique=True)
+    await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+    await db.properties.create_index("property_id", unique=True)
+    await db.bookings.create_index("booking_id", unique=True)
+    await seed_data()
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    client.close()
+
+
+@api.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"service": "NestFinder API", "ok": True}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
-
-# Include the router in the main app
-app.include_router(api_router)
-
+app.include_router(api)
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
