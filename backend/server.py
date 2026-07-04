@@ -88,6 +88,8 @@ class PropertyIn(BaseModel):
     amenities: List[str] = []
     images: List[str] = []  # base64 strings or URLs
     status: PropertyStatus = "available"
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class Property(PropertyIn):
@@ -354,11 +356,28 @@ async def get_property(pid: str):
 async def create_property(inp: PropertyIn, user: User = Depends(get_current_user)):
     if user.role != "landlord":
         raise HTTPException(status_code=403, detail="Only landlords can add properties")
+    data = inp.dict()
+    # auto-geocode via Nominatim OSM (free, no key) when coordinates missing
+    if data.get("lat") is None or data.get("lng") is None:
+        try:
+            async with httpx.AsyncClient(timeout=6) as hc:
+                r = await hc.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": data["location"], "format": "json", "limit": 1},
+                    headers={"User-Agent": "NestFinder/1.0"},
+                )
+                if r.status_code == 200:
+                    arr = r.json()
+                    if arr:
+                        data["lat"] = float(arr[0]["lat"])
+                        data["lng"] = float(arr[0]["lon"])
+        except Exception:
+            pass
     prop = Property(
         property_id=f"prop_{uuid.uuid4().hex[:12]}",
         landlord_id=user.user_id,
         landlord_name=user.name,
-        **inp.dict(),
+        **data,
     )
     await db.properties.insert_one(prop.dict())
     return prop
@@ -504,31 +523,31 @@ async def seed_data():
     seed_props = [
         ("Sunny 1BHK near Metro", "Koramangala, Bangalore", 18000, "1BHK", 1, 1,
          "Bright and airy 1BHK apartment just 5 mins walk from the metro station. Fully furnished with modern amenities.",
-         ["WiFi", "AC", "Kitchen", "Parking"], [SEED_IMAGES["1"], SEED_IMAGES["3"]]),
+         ["WiFi", "AC", "Kitchen", "Parking"], [SEED_IMAGES["1"], SEED_IMAGES["3"]], 12.9352, 77.6245),
         ("Modern 2BHK with Balcony", "HSR Layout, Bangalore", 32000, "2BHK", 2, 2,
          "Spacious 2BHK with balcony views, perfect for small families or working professionals.",
-         ["WiFi", "AC", "Balcony", "Gym", "Parking"], [SEED_IMAGES["2"], SEED_IMAGES["4"]]),
+         ["WiFi", "AC", "Balcony", "Gym", "Parking"], [SEED_IMAGES["2"], SEED_IMAGES["4"]], 12.9116, 77.6473),
         ("Cozy Single Room", "Indiranagar, Bangalore", 9500, "Single Room", 1, 1,
          "Compact fully furnished room ideal for students or bachelors. Includes power backup.",
-         ["WiFi", "Furnished", "Power Backup"], [SEED_IMAGES["5"]]),
+         ["WiFi", "Furnished", "Power Backup"], [SEED_IMAGES["5"]], 12.9784, 77.6408),
         ("Premium 3BHK Family Home", "Whitefield, Bangalore", 55000, "3BHK", 3, 3,
          "Luxurious 3BHK in a gated community with clubhouse, swimming pool, and 24/7 security.",
-         ["WiFi", "AC", "Swimming Pool", "Gym", "Security", "Parking"], [SEED_IMAGES["6"], SEED_IMAGES["9"]]),
+         ["WiFi", "AC", "Swimming Pool", "Gym", "Security", "Parking"], [SEED_IMAGES["6"], SEED_IMAGES["9"]], 12.9698, 77.7500),
         ("Girls PG - Fully Furnished", "BTM Layout, Bangalore", 8500, "PG/Hostel", 1, 1,
          "Safe and comfortable PG for working women with meals, WiFi, and 24/7 security.",
-         ["WiFi", "Meals", "Laundry", "Security"], [SEED_IMAGES["7"]]),
+         ["WiFi", "Meals", "Laundry", "Security"], [SEED_IMAGES["7"]], 12.9166, 77.6101),
         ("Bright 1BHK Studio", "MG Road, Pune", 15500, "1BHK", 1, 1,
          "Modern studio-style 1BHK in the heart of Pune. Walk to cafes, offices, and metro.",
-         ["WiFi", "AC", "Kitchen"], [SEED_IMAGES["8"]]),
+         ["WiFi", "AC", "Kitchen"], [SEED_IMAGES["8"]], 18.5314, 73.8446),
         ("Spacious 2BHK", "Andheri West, Mumbai", 42000, "2BHK", 2, 2,
          "Well-ventilated 2BHK apartment with easy access to the metro and local shops.",
-         ["WiFi", "AC", "Parking", "Lift"], [SEED_IMAGES["3"], SEED_IMAGES["2"]]),
+         ["WiFi", "AC", "Parking", "Lift"], [SEED_IMAGES["3"], SEED_IMAGES["2"]], 19.1364, 72.8296),
         ("Boys PG Near Tech Park", "Marathahalli, Bangalore", 7500, "PG/Hostel", 1, 1,
          "Budget-friendly PG for working professionals. Meals included, near IT parks.",
-         ["WiFi", "Meals", "Laundry"], [SEED_IMAGES["4"]]),
+         ["WiFi", "Meals", "Laundry"], [SEED_IMAGES["4"]], 12.9591, 77.6974),
     ]
 
-    for (title, location, price, ptype, beds, baths, desc, amens, imgs) in seed_props:
+    for (title, location, price, ptype, beds, baths, desc, amens, imgs, lat, lng) in seed_props:
         await db.properties.insert_one({
             "property_id": f"prop_{uuid.uuid4().hex[:12]}",
             "title": title,
@@ -540,6 +559,9 @@ async def seed_data():
             "description": desc,
             "amenities": amens,
             "images": imgs,
+            "status": "available",
+            "lat": lat,
+            "lng": lng,
             "landlord_id": landlord_id,
             "landlord_name": "Priya Sharma",
             "created_at": datetime.now(timezone.utc),
@@ -559,6 +581,22 @@ async def on_startup():
     await db.bookings.create_index("booking_id", unique=True)
     # Migration: ensure all properties have a status field
     await db.properties.update_many({"status": {"$exists": False}}, {"$set": {"status": "available"}})
+    # Migration: backfill lat/lng for demo seed properties (idempotent)
+    coord_map = {
+        "Koramangala, Bangalore": (12.9352, 77.6245),
+        "HSR Layout, Bangalore": (12.9116, 77.6473),
+        "Indiranagar, Bangalore": (12.9784, 77.6408),
+        "Whitefield, Bangalore": (12.9698, 77.7500),
+        "BTM Layout, Bangalore": (12.9166, 77.6101),
+        "MG Road, Pune": (18.5314, 73.8446),
+        "Andheri West, Mumbai": (19.1364, 72.8296),
+        "Marathahalli, Bangalore": (12.9591, 77.6974),
+    }
+    for loc, (lat, lng) in coord_map.items():
+        await db.properties.update_many(
+            {"location": loc, "$or": [{"lat": {"$exists": False}}, {"lat": None}]},
+            {"$set": {"lat": lat, "lng": lng}},
+        )
     await seed_data()
 
 
@@ -668,6 +706,126 @@ async def submit_kyc(body: dict, user: User = Depends(get_current_user)):
 async def kyc_status(user: User = Depends(get_current_user)):
     doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "kyc_status": 1})
     return {"status": doc.get("kyc_status", "none") if doc else "none"}
+
+
+# =============== Chat ===============
+class ChatMessageIn(BaseModel):
+    text: str
+
+
+class ChatMessage(BaseModel):
+    message_id: str
+    thread_id: str
+    sender_id: str
+    sender_name: str
+    text: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+async def _get_or_create_thread(tenant_id: str, landlord_id: str, property_id: str, prop_doc: dict) -> dict:
+    existing = await db.chat_threads.find_one(
+        {"tenant_id": tenant_id, "landlord_id": landlord_id, "property_id": property_id},
+        {"_id": 0},
+    )
+    if existing:
+        return existing
+    thread = {
+        "thread_id": f"th_{uuid.uuid4().hex[:12]}",
+        "tenant_id": tenant_id,
+        "landlord_id": landlord_id,
+        "property_id": property_id,
+        "property_title": prop_doc["title"],
+        "last_message": "",
+        "last_message_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.chat_threads.insert_one(thread)
+    return thread
+
+
+@api.post("/chat/threads")
+async def create_or_get_thread(body: dict, user: User = Depends(get_current_user)):
+    pid = body.get("property_id")
+    if not pid:
+        raise HTTPException(status_code=400, detail="property_id required")
+    prop = await db.properties.find_one({"property_id": pid}, {"_id": 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    # tenant reaching out to landlord (landlord can't message themselves)
+    if user.user_id == prop["landlord_id"]:
+        raise HTTPException(status_code=400, detail="Cannot message yourself")
+    thread = await _get_or_create_thread(
+        tenant_id=user.user_id,
+        landlord_id=prop["landlord_id"],
+        property_id=pid,
+        prop_doc=prop,
+    )
+    thread.pop("_id", None)
+    return thread
+
+
+@api.get("/chat/threads")
+async def list_threads(user: User = Depends(get_current_user)):
+    docs = await db.chat_threads.find(
+        {"$or": [{"tenant_id": user.user_id}, {"landlord_id": user.user_id}]},
+        {"_id": 0},
+    ).sort("last_message_at", -1).to_list(200)
+    # decorate with other-party name
+    other_ids = list({d["landlord_id"] if user.user_id == d["tenant_id"] else d["tenant_id"] for d in docs})
+    users_map = {}
+    if other_ids:
+        udocs = await db.users.find(
+            {"user_id": {"$in": other_ids}},
+            {"_id": 0, "user_id": 1, "name": 1, "kyc_status": 1},
+        ).to_list(500)
+        users_map = {u["user_id"]: u for u in udocs}
+    result = []
+    for d in docs:
+        other_id = d["landlord_id"] if user.user_id == d["tenant_id"] else d["tenant_id"]
+        other = users_map.get(other_id, {})
+        result.append({
+            **d,
+            "other_id": other_id,
+            "other_name": other.get("name", "User"),
+            "other_verified": other.get("kyc_status") == "verified",
+        })
+    return result
+
+
+@api.get("/chat/threads/{tid}/messages")
+async def list_messages(tid: str, user: User = Depends(get_current_user)):
+    thread = await db.chat_threads.find_one({"thread_id": tid}, {"_id": 0})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    if user.user_id not in (thread["tenant_id"], thread["landlord_id"]):
+        raise HTTPException(status_code=403, detail="Not a member of this thread")
+    msgs = await db.chat_messages.find({"thread_id": tid}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    return {"thread": thread, "messages": msgs}
+
+
+@api.post("/chat/threads/{tid}/messages", response_model=ChatMessage)
+async def send_message(tid: str, inp: ChatMessageIn, user: User = Depends(get_current_user)):
+    text = inp.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty message")
+    thread = await db.chat_threads.find_one({"thread_id": tid}, {"_id": 0})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    if user.user_id not in (thread["tenant_id"], thread["landlord_id"]):
+        raise HTTPException(status_code=403, detail="Not a member of this thread")
+    msg = ChatMessage(
+        message_id=f"msg_{uuid.uuid4().hex[:12]}",
+        thread_id=tid,
+        sender_id=user.user_id,
+        sender_name=user.name,
+        text=text,
+    )
+    await db.chat_messages.insert_one(msg.dict())
+    await db.chat_threads.update_one(
+        {"thread_id": tid},
+        {"$set": {"last_message": text, "last_message_at": datetime.now(timezone.utc)}},
+    )
+    return msg
 
 
 app.include_router(api)

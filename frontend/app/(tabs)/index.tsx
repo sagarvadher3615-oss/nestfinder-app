@@ -49,11 +49,18 @@ export default function Home() {
           <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
           <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
         </View>
-        {isLandlord && (
-          <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
-            <Ionicons name="add" size={22} color="#fff" />
-          </Pressable>
-        )}
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {!isLandlord && (
+            <Pressable style={styles.iconBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
+              <Ionicons name="map-outline" size={20} color={colors.brand} />
+            </Pressable>
+          )}
+          {isLandlord && (
+            <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
+              <Ionicons name="add" size={22} color="#fff" />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {!isLandlord && (
@@ -145,6 +152,10 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand,
     alignItems: "center", justifyContent: "center",
+  },
+  iconBtn: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandTertiary,
+    alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.brand,
   },
   searchBar: {
     marginHorizontal: spacing.lg, marginTop: spacing.md,

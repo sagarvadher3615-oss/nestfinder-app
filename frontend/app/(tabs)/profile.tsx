@@ -109,6 +109,11 @@ export default function Profile() {
             <Text style={styles.rowTxt}>Saved Properties</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </Pressable>
+          <Pressable style={styles.rowItem} onPress={() => router.push("/chat" as any)} testID="profile-messages">
+            <Ionicons name="chatbubbles-outline" size={22} color={colors.onSurface} />
+            <Text style={styles.rowTxt}>Messages</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
           {user.role === "landlord" && (
             <Pressable style={styles.rowItem} onPress={() => router.push("/property/new")} testID="profile-add-property">
               <Ionicons name="add-circle-outline" size={22} color={colors.onSurface} />

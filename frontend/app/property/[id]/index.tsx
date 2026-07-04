@@ -85,6 +85,16 @@ export default function PropertyDetail() {
     } finally { setRevBusy(false); }
   };
 
+  const openChat = async () => {
+    if (!prop) return;
+    try {
+      const t = await api.post("/chat/threads", { property_id: prop.property_id });
+      router.push(`/chat/${t.thread_id}` as any);
+    } catch (e: any) {
+      toast.show(e.message || "Could not open chat", "error");
+    }
+  };
+
   const remove = async () => {
     if (!prop) return;
     setBusy(true);
@@ -200,6 +210,12 @@ export default function PropertyDetail() {
                 </Text>
               </View>
             </View>
+            {!isOwner && (
+              <Pressable style={styles.msgBtn} onPress={openChat} testID="detail-message-btn">
+                <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.brand} />
+                <Text style={styles.msgBtnTxt}>Message</Text>
+              </Pressable>
+            )}
           </View>
 
           {/* Reviews */}
@@ -386,4 +402,6 @@ const styles = StyleSheet.create({
   modalInput: { backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, padding: spacing.md, minHeight: 80, textAlignVertical: "top", fontSize: type.base, color: colors.onSurface },
   modalSubmit: { backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.md },
   modalSubmitTxt: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
+  msgBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.brand },
+  msgBtnTxt: { color: colors.brand, fontSize: type.sm, fontWeight: "500" },
 });

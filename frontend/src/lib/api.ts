@@ -53,6 +53,30 @@ export type Property = {
   landlord_id: string;
   landlord_name: string;
   landlord_verified?: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  created_at: string;
+};
+
+export type ChatThread = {
+  thread_id: string;
+  tenant_id: string;
+  landlord_id: string;
+  property_id: string;
+  property_title: string;
+  last_message: string;
+  last_message_at: string;
+  other_id?: string;
+  other_name?: string;
+  other_verified?: boolean;
+};
+
+export type ChatMessage = {
+  message_id: string;
+  thread_id: string;
+  sender_id: string;
+  sender_name: string;
+  text: string;
   created_at: string;
 };
 
