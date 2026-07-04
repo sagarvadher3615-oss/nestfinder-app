@@ -1,0 +1,43 @@
+{
+  "summary": "Phase-1 feature batch tested end-to-end. Backend: 45/45 pytest tests pass (19 new phase-1 tests + 26 existing regression tests). Verified sort=newest/price_asc/price_desc, available_only filter, favorites toggle+list, reviews (rating 1-5 validation, duplicate 400, average computation), KYC submit->pending->auto-verified after 5s, /auth/me exposes kyc_status, and Property.landlord_verified reflects landlord KYC state. All prior endpoints (auth/properties/bookings) still work — no regressions. Frontend: Home tab shows sort chips (Newest / Price low / Price high) + Available-only chip horizontally scrollable and switching sort actually re-orders the list (Price ASC top=₹7,500, Price DESC top=₹55,000). Heart button on PropertyCard toggles favorite; Profile > Saved Properties navigates to /favorites and shows the favorited items. Property detail displays share + heart buttons top-right, Reviews section renders average/count/list, Write Review modal opens with 5 tappable stars + comment + Post Review. Landlord profile shows the 'Get Verified' row under Verification section as expected. Demo tenant profile currently shows a green 'Verified' badge next to the Tenant role — the verified-state UI is confirmed working. Deprecated packages detected: none. React Native Web deprecation warnings (shadow*, pointerEvents) still emit — non-blocking.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": ["React Native Web console warnings persist: 'shadow*' style props (migrate to boxShadow) and 'props.pointerEvents' (move to style.pointerEvents). Non-blocking but should be cleaned up."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase1.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional/Data-hygiene) Demo tenant (tenant@nestfinder.app) currently has kyc_status='verified' persisted from prior test sessions. seed_data() short-circuits when users exist, so demo accounts are never reset. Consider adding an idempotent step at startup that force-resets kyc_status/favorites/reviews on the two demo accounts so KYC/Reviews demo flows can be exercised repeatedly.",
+    "(Optional) Replace deprecated 'shadow*' style props with 'boxShadow' and move 'pointerEvents' prop into style to silence RN Web deprecation warnings.",
+    "(Optional) The Review modal renders slightly below the visible viewport on 390x844 devices (Playwright reported star elements 'outside of the viewport' when using scroll_into_view). Modal content is present and testIDs match — consider centering the modal card with justifyContent so all star buttons and Post Review are visible without needing an internal ScrollView."
+  ],
+  "critical_code_review_comments": [
+    "server.py: `import asyncio` is placed mid-file at line 650; move to top-level imports for cleanliness.",
+    "server.py has grown to ~680 lines; still acceptable but favourites/reviews/kyc are new logical modules that could be split into routers.",
+    "Favorites/Reviews responses correctly exclude MongoDB _id via projection.",
+    "KYC auto-approve uses asyncio.create_task on a per-request event loop — fine for single-process demo, but note the 5s task is lost on server restart (a legitimate demo trade-off).",
+    "GET /reviews/{pid} is public (no auth) — consistent with viewing reviews before booking; POST correctly requires auth.",
+    "landlord_verified is computed on the fly via _enrich_verified — correct and avoids stale data."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase1.py (NEW)",
+    "/app/backend/tests/backend_test.py (test isolation fix: TestBookings.test_create_booking now filters to demo-landlord's property)"
+  ],
+  "success_rate": {"backend": "100% (45/45)", "frontend": "100% (all critical phase-1 flows verified)"},
+  "seed_data_creation": "Tests create TEST_-prefixed users/reviews/favorites/properties. Properties created in test_landlord_verified_reflects_on_properties are deleted at teardown. TEST_ users, reviews, favorites remain in DB (harmless, prefixed for identification).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL: https://nest-search-6.preview.emergentagent.com. Demo creds: tenant@nestfinder.app / Demo123! and landlord@nestfinder.app / Demo123!. Run tests via: cd /app && python -m pytest backend/tests/test_phase1.py backend/tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml. New testIDs added in phase 1: sort-newest, sort-price-asc, sort-price-desc, filter-available-only, fav-btn-<pid>, fav-back-btn, favorites-screen, fav-prop-card-<pid>, detail-share-btn, detail-fav-btn, write-review-btn, review-modal, star-1..5, review-comment, review-submit, review-<review_id>, profile-favorites, profile-kyc-btn. NOTE: demo tenant kyc_status is already 'verified' from prior UI test — if you need to test the 'Get Verified' row for tenant, use the landlord account (still shows Get Verified row) or a freshly registered user.",
+  "rca_of_issue": "No product bugs found. Two pre-existing regression tests (test_bookings_landlord, test_patch_accept_as_landlord) failed once because they relied on `arr[0]` being owned by the demo landlord. With the newly added phase-1 tests running earlier and creating landlord-owned properties in the same DB, sorting by 'newest' would surface those newer properties first. Fixed test_create_booking to explicitly select a property whose landlord_id == 'user_demo_landlord' with status='available'. All 45 tests now pass reliably."
+}

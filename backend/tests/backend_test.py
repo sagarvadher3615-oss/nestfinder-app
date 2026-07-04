@@ -233,7 +233,10 @@ class TestBookings:
 
     def test_create_booking(self, s, tenant_token):
         arr = s.get(f"{API}/properties", timeout=15).json()
-        pid = arr[0]["property_id"]
+        # Pick a property owned by the demo landlord so accept-as-landlord works
+        demo_props = [p for p in arr if p["landlord_id"] == "user_demo_landlord" and p.get("status", "available") == "available"]
+        assert demo_props, "no demo-landlord property available for booking"
+        pid = demo_props[0]["property_id"]
         TestBookings.prop_id = pid
         payload = {"property_id": pid, "tenant_name": "TEST Tenant", "tenant_phone": "+919999999999", "move_in_date": "2026-02-01"}
         r = s.post(f"{API}/bookings", headers=_h(tenant_token), json=payload, timeout=15)

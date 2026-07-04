@@ -15,17 +15,28 @@ export default function Home() {
 
   const [items, setItems] = useState<Property[]>([]);
   const [filter, setFilter] = useState("All");
+  const [sort, setSort] = useState<"newest" | "price_asc" | "price_desc">("newest");
+  const [availableOnly, setAvailableOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const q = isLandlord ? "/properties/mine" : `/properties${filter !== "All" ? `?property_type=${encodeURIComponent(filter)}` : ""}`;
-      const data = await api.get(q);
+      let path: string;
+      if (isLandlord) {
+        path = "/properties/mine";
+      } else {
+        const params = new URLSearchParams();
+        if (filter !== "All") params.set("property_type", filter);
+        params.set("sort", sort);
+        if (availableOnly) params.set("available_only", "true");
+        path = `/properties?${params.toString()}`;
+      }
+      const data = await api.get(path);
       setItems(data);
     } catch (e) { console.warn(e); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [filter, isLandlord]);
+  }, [filter, sort, availableOnly, isLandlord]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -69,6 +80,29 @@ export default function Home() {
                 <Text style={[styles.chipTxt, filter === t && styles.chipTxtActive]}>{t}</Text>
               </Pressable>
             ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {!isLandlord && (
+        <View style={styles.sortWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
+            <Pressable testID="sort-newest" onPress={() => setSort("newest")} style={[styles.sortChip, sort === "newest" && styles.sortChipActive]}>
+              <Ionicons name="time-outline" size={14} color={sort === "newest" ? colors.brand : colors.textSecondary} />
+              <Text style={[styles.sortTxt, sort === "newest" && styles.sortTxtActive]}>Newest</Text>
+            </Pressable>
+            <Pressable testID="sort-price-asc" onPress={() => setSort("price_asc")} style={[styles.sortChip, sort === "price_asc" && styles.sortChipActive]}>
+              <Ionicons name="arrow-up" size={14} color={sort === "price_asc" ? colors.brand : colors.textSecondary} />
+              <Text style={[styles.sortTxt, sort === "price_asc" && styles.sortTxtActive]}>Price low</Text>
+            </Pressable>
+            <Pressable testID="sort-price-desc" onPress={() => setSort("price_desc")} style={[styles.sortChip, sort === "price_desc" && styles.sortChipActive]}>
+              <Ionicons name="arrow-down" size={14} color={sort === "price_desc" ? colors.brand : colors.textSecondary} />
+              <Text style={[styles.sortTxt, sort === "price_desc" && styles.sortTxtActive]}>Price high</Text>
+            </Pressable>
+            <Pressable testID="filter-available-only" onPress={() => setAvailableOnly(v => !v)} style={[styles.sortChip, availableOnly && styles.sortChipActive]}>
+              <Ionicons name={availableOnly ? "checkmark-circle" : "ellipse-outline"} size={14} color={availableOnly ? colors.brand : colors.textSecondary} />
+              <Text style={[styles.sortTxt, availableOnly && styles.sortTxtActive]}>Available only</Text>
+            </Pressable>
           </ScrollView>
         </View>
       )}
@@ -128,6 +162,16 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
   chipTxt: { fontSize: type.sm, color: colors.onSurfaceTertiary },
   chipTxtActive: { color: colors.brand, fontWeight: "500" },
+  sortWrap: { height: 44, marginTop: 2, marginBottom: spacing.xs },
+  sortChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border,
+    flexShrink: 0,
+  },
+  sortChipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
+  sortTxt: { fontSize: type.sm, color: colors.textSecondary },
+  sortTxtActive: { color: colors.brand, fontWeight: "500" },
   centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.xl },
   emptyTitle: { fontSize: type.lg, color: colors.onSurface, marginTop: spacing.md, fontWeight: "500" },
   emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center" },

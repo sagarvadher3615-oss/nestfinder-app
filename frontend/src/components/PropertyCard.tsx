@@ -1,13 +1,29 @@
-import { View, Text, StyleSheet, Pressable, FlatList } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Property } from "@/src/lib/api";
+import { useFavorites } from "@/src/lib/favorites";
+import { useToast } from "@/src/lib/toast";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
 export function PropertyCard({ item, testIDPrefix = "prop" }: { item: Property; testIDPrefix?: string }) {
   const router = useRouter();
+  const { ids, toggle } = useFavorites();
+  const toast = useToast();
+  const fav = ids.has(item.property_id);
+
+  const onFav = async (e: any) => {
+    e.stopPropagation?.();
+    try {
+      const now = await toggle(item.property_id);
+      toast.show(now ? "Saved to favourites" : "Removed from favourites", "success");
+    } catch (err: any) {
+      toast.show(err.message || "Could not update", "error");
+    }
+  };
+
   return (
     <Pressable
       testID={`${testIDPrefix}-card-${item.property_id}`}
@@ -22,6 +38,9 @@ export function PropertyCard({ item, testIDPrefix = "prop" }: { item: Property; 
           style={StyleSheet.absoluteFillObject}
         />
         <View style={styles.badge}><Text style={styles.badgeTxt}>{item.property_type}</Text></View>
+        <Pressable onPress={onFav} style={styles.heartBtn} hitSlop={8} testID={`fav-btn-${item.property_id}`}>
+          <Ionicons name={fav ? "heart" : "heart-outline"} size={20} color={fav ? "#F04A4A" : "#fff"} />
+        </Pressable>
         {item.status !== "available" && (
           <View style={styles.statusOverlay}>
             <View style={[styles.statusPill, item.status === "rented" ? styles.pillRented : styles.pillOwned]}>
@@ -31,7 +50,12 @@ export function PropertyCard({ item, testIDPrefix = "prop" }: { item: Property; 
           </View>
         )}
         <View style={styles.imgBottom}>
-          <Text style={styles.imgTitle} numberOfLines={1}>{item.title}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.imgTitle} numberOfLines={1}>{item.title}</Text>
+            {item.landlord_verified && (
+              <Ionicons name="shield-checkmark" size={14} color="#89D69C" />
+            )}
+          </View>
           <View style={styles.locRow}>
             <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.9)" />
             <Text style={styles.imgLoc} numberOfLines={1}>{item.location}</Text>
@@ -65,13 +89,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill,
   },
   badgeTxt: { fontSize: type.sm, color: colors.brand, fontWeight: "500" },
-  statusOverlay: { position: "absolute", top: spacing.md, right: spacing.md },
+  heartBtn: {
+    position: "absolute", top: spacing.md, right: spacing.md,
+    width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center", justifyContent: "center",
+  },
+  statusOverlay: { position: "absolute", top: 56, right: spacing.md },
   statusPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
   pillRented: { backgroundColor: "#A85751" },
   pillOwned: { backgroundColor: "#4A544C" },
   statusPillTxt: { color: "#fff", fontSize: type.sm, fontWeight: "500" },
   imgBottom: { position: "absolute", left: spacing.md, right: spacing.md, bottom: spacing.md },
-  imgTitle: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  imgTitle: { color: "#fff", fontSize: type.lg, fontWeight: "500", flexShrink: 1 },
   locRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
   imgLoc: { color: "rgba(255,255,255,0.9)", fontSize: type.sm, flex: 1 },
   cardBody: { padding: spacing.md, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

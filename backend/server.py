@@ -48,6 +48,7 @@ class User(BaseModel):
     phone: Optional[str] = None
     role: Role
     avatar: Optional[str] = None
+    kyc_status: Literal["none", "pending", "verified"] = "none"
     auth_provider: str = "password"  # or "google"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -92,6 +93,7 @@ class Property(PropertyIn):
     property_id: str
     landlord_id: str
     landlord_name: str
+    landlord_verified: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -279,6 +281,20 @@ async def update_role(body: dict, user: User = Depends(get_current_user)):
 
 
 # =============== Property endpoints ===============
+async def _enrich_verified(docs: list) -> list:
+    if not docs:
+        return docs
+    landlord_ids = list({d["landlord_id"] for d in docs})
+    verified_users = await db.users.find(
+        {"user_id": {"$in": landlord_ids}, "kyc_status": "verified"},
+        {"_id": 0, "user_id": 1},
+    ).to_list(500)
+    verified_set = {u["user_id"] for u in verified_users}
+    for d in docs:
+        d["landlord_verified"] = d["landlord_id"] in verified_set
+    return docs
+
+
 @api.get("/properties", response_model=List[Property])
 async def list_properties(
     q: Optional[str] = None,
@@ -286,6 +302,8 @@ async def list_properties(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
+    available_only: bool = False,
+    sort: str = "newest",
     limit: int = Query(50, le=100),
 ):
     query = {}
@@ -302,13 +320,23 @@ async def list_properties(
         query.setdefault("price", {})["$lte"] = max_price
     if bedrooms is not None:
         query["bedrooms"] = bedrooms
-    docs = await db.properties.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    if available_only:
+        query["status"] = "available"
+    sort_map = {
+        "newest": ("created_at", -1),
+        "price_asc": ("price", 1),
+        "price_desc": ("price", -1),
+    }
+    sort_field, sort_dir = sort_map.get(sort, ("created_at", -1))
+    docs = await db.properties.find(query, {"_id": 0}).sort(sort_field, sort_dir).to_list(limit)
+    docs = await _enrich_verified(docs)
     return [Property(**d) for d in docs]
 
 
 @api.get("/properties/mine", response_model=List[Property])
 async def my_properties(user: User = Depends(get_current_user)):
     docs = await db.properties.find({"landlord_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    docs = await _enrich_verified(docs)
     return [Property(**d) for d in docs]
 
 
@@ -317,7 +345,8 @@ async def get_property(pid: str):
     doc = await db.properties.find_one({"property_id": pid}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Property not found")
-    return Property(**doc)
+    docs = await _enrich_verified([doc])
+    return Property(**docs[0])
 
 
 @api.post("/properties", response_model=Property)
@@ -527,6 +556,8 @@ async def on_startup():
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.properties.create_index("property_id", unique=True)
     await db.bookings.create_index("booking_id", unique=True)
+    # Migration: ensure all properties have a status field
+    await db.properties.update_many({"status": {"$exists": False}}, {"$set": {"status": "available"}})
     await seed_data()
 
 
@@ -538,6 +569,106 @@ async def on_shutdown():
 @api.get("/")
 async def root():
     return {"service": "NestFinder API", "ok": True}
+
+
+# =============== Favourites ===============
+@api.get("/favorites")
+async def list_favorites(user: User = Depends(get_current_user)):
+    docs = await db.favorites.find({"user_id": user.user_id}, {"_id": 0}).to_list(500)
+    pids = [d["property_id"] for d in docs]
+    if not pids:
+        return {"ids": [], "properties": []}
+    props = await db.properties.find({"property_id": {"$in": pids}}, {"_id": 0}).to_list(500)
+    return {"ids": pids, "properties": [Property(**p).dict() for p in props]}
+
+
+@api.post("/favorites/{pid}")
+async def toggle_favorite(pid: str, user: User = Depends(get_current_user)):
+    existing = await db.favorites.find_one({"user_id": user.user_id, "property_id": pid})
+    if existing:
+        await db.favorites.delete_one({"user_id": user.user_id, "property_id": pid})
+        return {"favorited": False}
+    await db.favorites.insert_one({
+        "user_id": user.user_id,
+        "property_id": pid,
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"favorited": True}
+
+
+# =============== Reviews ===============
+class ReviewIn(BaseModel):
+    property_id: str
+    rating: int  # 1..5
+    comment: str = ""
+
+
+class Review(BaseModel):
+    review_id: str
+    property_id: str
+    author_id: str
+    author_name: str
+    rating: int
+    comment: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@api.get("/reviews/{pid}")
+async def list_reviews(pid: str):
+    docs = await db.reviews.find({"property_id": pid}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    reviews = [Review(**d).dict() for d in docs]
+    if not reviews:
+        return {"average": 0.0, "count": 0, "reviews": []}
+    avg = round(sum(r["rating"] for r in reviews) / len(reviews), 1)
+    return {"average": avg, "count": len(reviews), "reviews": reviews}
+
+
+@api.post("/reviews", response_model=Review)
+async def create_review(inp: ReviewIn, user: User = Depends(get_current_user)):
+    if not (1 <= inp.rating <= 5):
+        raise HTTPException(status_code=400, detail="Rating must be 1-5")
+    prop = await db.properties.find_one({"property_id": inp.property_id}, {"_id": 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    # one review per user per property
+    existing = await db.reviews.find_one({"property_id": inp.property_id, "author_id": user.user_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="You've already reviewed this property")
+    review = Review(
+        review_id=f"rev_{uuid.uuid4().hex[:12]}",
+        property_id=inp.property_id,
+        author_id=user.user_id,
+        author_name=user.name,
+        rating=inp.rating,
+        comment=inp.comment.strip(),
+    )
+    await db.reviews.insert_one(review.dict())
+    return review
+
+
+# =============== KYC (verification) ===============
+import asyncio
+
+async def _auto_approve_kyc(user_id: str):
+    await asyncio.sleep(5)
+    await db.users.update_one({"user_id": user_id}, {"$set": {"kyc_status": "verified"}})
+
+
+@api.post("/kyc/submit")
+async def submit_kyc(body: dict, user: User = Depends(get_current_user)):
+    # body: {"document": "base64..."} — we don't actually store the doc, just mark pending
+    if not body.get("document"):
+        raise HTTPException(status_code=400, detail="Document is required")
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"kyc_status": "pending"}})
+    # auto-approve after 5s (demo)
+    asyncio.create_task(_auto_approve_kyc(user.user_id))
+    return {"status": "pending"}
+
+
+@api.get("/kyc/status")
+async def kyc_status(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "kyc_status": 1})
+    return {"status": doc.get("kyc_status", "none") if doc else "none"}
 
 
 app.include_router(api)

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Dimensions, Share, TextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { api, Property } from "@/src/lib/api";
+import { api, Property, Review } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
+import { useFavorites } from "@/src/lib/favorites";
+import { useToast } from "@/src/lib/toast";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
 const { width } = Dimensions.get("window");
@@ -16,20 +18,72 @@ export default function PropertyDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { ids: favIds, toggle: toggleFav } = useFavorites();
+  const toast = useToast();
   const [prop, setProp] = useState<Property | null>(null);
+  const [reviews, setReviews] = useState<{ average: number; count: number; reviews: Review[] }>({ average: 0, count: 0, reviews: [] });
+  const [showRevModal, setShowRevModal] = useState(false);
+  const [revRating, setRevRating] = useState(5);
+  const [revComment, setRevComment] = useState("");
+  const [revBusy, setRevBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [gIdx, setGIdx] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
-      try { setProp(await api.get(`/properties/${id}`)); }
-      catch (e) { console.warn(e); }
+      try {
+        const [p, r] = await Promise.all([
+          api.get(`/properties/${id}`),
+          api.get(`/reviews/${id}`),
+        ]);
+        setProp(p);
+        setReviews(r);
+      } catch (e) { console.warn(e); }
       finally { setLoading(false); }
     })();
   }, [id]);
 
   const isOwner = user?.user_id === prop?.landlord_id;
+  const fav = prop ? favIds.has(prop.property_id) : false;
+
+  const onShare = async () => {
+    if (!prop) return;
+    const backend = process.env.EXPO_PUBLIC_BACKEND_URL;
+    const link = `${backend}/property/${prop.property_id}`;
+    try {
+      if (Platform.OS === "web") {
+        if (navigator.share) await navigator.share({ title: prop.title, text: prop.title, url: link });
+        else { await navigator.clipboard?.writeText(link); toast.show("Link copied!", "success"); }
+      } else {
+        await Share.share({ message: `${prop.title} — ${prop.location}\n${link}`, url: link, title: prop.title });
+      }
+    } catch { /* user cancelled */ }
+  };
+
+  const onFav = async () => {
+    if (!prop) return;
+    try {
+      const now = await toggleFav(prop.property_id);
+      toast.show(now ? "Saved to favourites" : "Removed", "success");
+    } catch (e: any) { toast.show(e.message || "Error", "error"); }
+  };
+
+  const submitReview = async () => {
+    if (!prop) return;
+    setRevBusy(true);
+    try {
+      await api.post("/reviews", { property_id: prop.property_id, rating: revRating, comment: revComment });
+      const r = await api.get(`/reviews/${prop.property_id}`);
+      setReviews(r);
+      setShowRevModal(false);
+      setRevComment("");
+      setRevRating(5);
+      toast.show("Review posted", "success");
+    } catch (e: any) {
+      toast.show(e.message || "Could not post review", "error");
+    } finally { setRevBusy(false); }
+  };
 
   const remove = async () => {
     if (!prop) return;
@@ -75,6 +129,16 @@ export default function PropertyDetail() {
           <Pressable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()} testID="detail-back-btn">
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
+          <View style={[styles.topActions, { top: insets.top + 8 }]}>
+            <Pressable style={styles.actionCircle} onPress={onShare} testID="detail-share-btn">
+              <Ionicons name="share-outline" size={20} color="#fff" />
+            </Pressable>
+            {!isOwner && (
+              <Pressable style={styles.actionCircle} onPress={onFav} testID="detail-fav-btn">
+                <Ionicons name={fav ? "heart" : "heart-outline"} size={20} color={fav ? "#F04A4A" : "#fff"} />
+              </Pressable>
+            )}
+          </View>
           {prop.images.length > 1 && (
             <View style={styles.dots}>
               {prop.images.map((_, i) => (
@@ -121,13 +185,57 @@ export default function PropertyDetail() {
           <View style={styles.landlord}>
             <View style={styles.llAvatar}><Text style={styles.llAvatarTxt}>{prop.landlord_name.charAt(0)}</Text></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.llName}>{prop.landlord_name}</Text>
+              <View style={styles.llNameRow}>
+                <Text style={styles.llName}>{prop.landlord_name}</Text>
+                {prop.landlord_verified && (
+                  <View style={styles.verifiedTick}>
+                    <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                  </View>
+                )}
+              </View>
               <View style={styles.verifyRow}>
-                <Ionicons name="shield-checkmark" size={12} color={colors.success} />
-                <Text style={styles.verifyTxt}>Verified landlord</Text>
+                <Ionicons name={prop.landlord_verified ? "shield-checkmark" : "information-circle-outline"} size={12} color={prop.landlord_verified ? colors.success : colors.textMuted} />
+                <Text style={[styles.verifyTxt, !prop.landlord_verified && { color: colors.textMuted }]}>
+                  {prop.landlord_verified ? "Identity verified" : "Not yet verified"}
+                </Text>
               </View>
             </View>
           </View>
+
+          {/* Reviews */}
+          <View style={styles.reviewsHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Reviews</Text>
+              {reviews.count > 0 ? (
+                <View style={styles.ratingRow}>
+                  <Ionicons name="star" size={16} color="#C28E3A" />
+                  <Text style={styles.ratingTxt}>{reviews.average.toFixed(1)}</Text>
+                  <Text style={styles.ratingCount}>({reviews.count} review{reviews.count === 1 ? "" : "s"})</Text>
+                </View>
+              ) : (
+                <Text style={styles.ratingCount}>No reviews yet</Text>
+              )}
+            </View>
+            {!isOwner && (
+              <Pressable style={styles.writeRevBtn} onPress={() => setShowRevModal(true)} testID="write-review-btn">
+                <Ionicons name="create-outline" size={14} color={colors.brand} />
+                <Text style={styles.writeRevTxt}>Write</Text>
+              </Pressable>
+            )}
+          </View>
+          {reviews.reviews.slice(0, 5).map(r => (
+            <View key={r.review_id} style={styles.reviewItem} testID={`review-${r.review_id}`}>
+              <View style={styles.reviewHead}>
+                <Text style={styles.reviewAuthor}>{r.author_name}</Text>
+                <View style={styles.reviewStars}>
+                  {[1,2,3,4,5].map(n => (
+                    <Ionicons key={n} name={n <= r.rating ? "star" : "star-outline"} size={12} color="#C28E3A" />
+                  ))}
+                </View>
+              </View>
+              {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
+            </View>
+          ))}
         </View>
       </ScrollView>
 
@@ -158,6 +266,41 @@ export default function PropertyDetail() {
           </Pressable>
         )}
       </View>
+
+      <Modal visible={showRevModal} transparent animationType="slide" onRequestClose={() => setShowRevModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowRevModal(false)} />
+          <View style={styles.modalCard} testID="review-modal">
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Write a review</Text>
+              <Pressable onPress={() => setShowRevModal(false)}>
+                <Ionicons name="close" size={22} color={colors.onSurface} />
+              </Pressable>
+            </View>
+            <Text style={styles.modalLabel}>Rating</Text>
+            <View style={styles.starRow}>
+              {[1,2,3,4,5].map(n => (
+                <Pressable key={n} onPress={() => setRevRating(n)} testID={`star-${n}`}>
+                  <Ionicons name={n <= revRating ? "star" : "star-outline"} size={32} color="#C28E3A" />
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.modalLabel}>Comment (optional)</Text>
+            <TextInput
+              value={revComment}
+              onChangeText={setRevComment}
+              style={styles.modalInput}
+              placeholder="Share your experience..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              testID="review-comment"
+            />
+            <Pressable style={styles.modalSubmit} onPress={submitReview} disabled={revBusy} testID="review-submit">
+              {revBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalSubmitTxt}>Post Review</Text>}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -219,4 +362,28 @@ const styles = StyleSheet.create({
   statusToggleTxt: { color: colors.brand, fontSize: type.base, fontWeight: "500" },
   unavailBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceTertiary, paddingHorizontal: spacing.xl, paddingVertical: 14, borderRadius: radius.md },
   unavailTxt: { color: colors.textSecondary, fontSize: type.lg, fontWeight: "500" },
+  topActions: { position: "absolute", right: spacing.md, flexDirection: "row", gap: spacing.sm },
+  actionCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
+  llNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  verifiedTick: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.success, alignItems: "center", justifyContent: "center" },
+  reviewsHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: spacing.xl },
+  ratingRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
+  ratingTxt: { fontSize: type.lg, color: colors.onSurface, fontWeight: "500" },
+  ratingCount: { fontSize: type.sm, color: colors.textSecondary },
+  writeRevBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.brandTertiary },
+  writeRevTxt: { fontSize: type.sm, color: colors.brand, fontWeight: "500" },
+  reviewItem: { backgroundColor: colors.surfaceSecondary, padding: spacing.md, borderRadius: radius.md, marginTop: spacing.sm },
+  reviewHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  reviewAuthor: { fontSize: type.base, color: colors.onSurface, fontWeight: "500" },
+  reviewStars: { flexDirection: "row", gap: 2 },
+  reviewComment: { fontSize: type.sm, color: colors.textSecondary, lineHeight: 20 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, paddingBottom: spacing.xl },
+  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+  modalTitle: { fontSize: type.xl, fontWeight: "500", color: colors.onSurface },
+  modalLabel: { fontSize: type.sm, color: colors.textSecondary, marginBottom: spacing.xs, marginTop: spacing.md },
+  starRow: { flexDirection: "row", gap: spacing.sm, justifyContent: "center", paddingVertical: spacing.sm },
+  modalInput: { backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, padding: spacing.md, minHeight: 80, textAlignVertical: "top", fontSize: type.base, color: colors.onSurface },
+  modalSubmit: { backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.md },
+  modalSubmitTxt: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
 });

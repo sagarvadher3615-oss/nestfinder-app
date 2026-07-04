@@ -35,6 +35,7 @@ export type User = {
   role: "tenant" | "landlord";
   avatar?: string;
   auth_provider?: string;
+  kyc_status?: "none" | "pending" | "verified";
 };
 
 export type Property = {
@@ -51,6 +52,17 @@ export type Property = {
   status: "available" | "rented" | "owned";
   landlord_id: string;
   landlord_name: string;
+  landlord_verified?: boolean;
+  created_at: string;
+};
+
+export type Review = {
+  review_id: string;
+  property_id: string;
+  author_id: string;
+  author_name: string;
+  rating: number;
+  comment: string;
   created_at: string;
 };
 
