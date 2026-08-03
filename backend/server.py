@@ -2,6 +2,7 @@ import os
 import uuid
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
@@ -28,7 +29,36 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "nestfinder-secret-change-me")
 JWT_ALG = "HS256"
 JWT_EXP_DAYS = 30
 
-app = FastAPI(title="NestFinder API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── startup ────────────────────────────────────────────────────────────
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("user_id", unique=True)
+    await db.properties.create_index("property_id", unique=True)
+    await db.bookings.create_index("booking_id", unique=True)
+    await db.properties.update_many({"status": {"$exists": False}}, {"$set": {"status": "available"}})
+    coord_map = {
+        "Koramangala, Bangalore": (12.9352, 77.6245),
+        "HSR Layout, Bangalore": (12.9116, 77.6473),
+        "Indiranagar, Bangalore": (12.9784, 77.6408),
+        "Whitefield, Bangalore": (12.9698, 77.7500),
+        "BTM Layout, Bangalore": (12.9166, 77.6101),
+        "MG Road, Pune": (18.5314, 73.8446),
+        "Andheri West, Mumbai": (19.1364, 72.8296),
+        "Marathahalli, Bangalore": (12.9591, 77.6974),
+    }
+    for loc, (lat, lng) in coord_map.items():
+        await db.properties.update_many(
+            {"location": loc, "$or": [{"lat": {"$exists": False}}, {"lat": None}]},
+            {"$set": {"lat": lat, "lng": lng}},
+        )
+    await seed_data()
+    yield
+    # ── shutdown ───────────────────────────────────────────────────────────
+    client.close()
+
+
+app = FastAPI(title="NestFinder API", lifespan=lifespan)
 api = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
@@ -500,39 +530,6 @@ async def seed_data():
         })
 
     logger.info("Seed data inserted: 2 users, 8 properties")
-
-
-@app.on_event("startup")
-async def on_startup():
-    # indexes
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("user_id", unique=True)
-    await db.properties.create_index("property_id", unique=True)
-    await db.bookings.create_index("booking_id", unique=True)
-    # Migration: ensure all properties have a status field
-    await db.properties.update_many({"status": {"$exists": False}}, {"$set": {"status": "available"}})
-    # Migration: backfill lat/lng for demo seed properties (idempotent)
-    coord_map = {
-        "Koramangala, Bangalore": (12.9352, 77.6245),
-        "HSR Layout, Bangalore": (12.9116, 77.6473),
-        "Indiranagar, Bangalore": (12.9784, 77.6408),
-        "Whitefield, Bangalore": (12.9698, 77.7500),
-        "BTM Layout, Bangalore": (12.9166, 77.6101),
-        "MG Road, Pune": (18.5314, 73.8446),
-        "Andheri West, Mumbai": (19.1364, 72.8296),
-        "Marathahalli, Bangalore": (12.9591, 77.6974),
-    }
-    for loc, (lat, lng) in coord_map.items():
-        await db.properties.update_many(
-            {"location": loc, "$or": [{"lat": {"$exists": False}}, {"lat": None}]},
-            {"$set": {"lat": lat, "lng": lng}},
-        )
-    await seed_data()
-
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    client.close()
 
 
 @api.get("/")
