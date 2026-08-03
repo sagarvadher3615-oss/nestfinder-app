@@ -1,6 +1,6 @@
 import { getToken } from "./token";
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
+const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 async function request(path: string, opts: RequestInit = {}) {
   const token = await getToken();
