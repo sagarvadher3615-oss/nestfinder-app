@@ -1,0 +1,12 @@
+[build]
+  command = "npm install --ignore-scripts && npx expo export --platform web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  EXPO_PUBLIC_BACKEND_URL = "https://nestfinder-app-backend.onrender.com"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
