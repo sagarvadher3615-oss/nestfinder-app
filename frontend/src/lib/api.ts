@@ -1,6 +1,6 @@
 import { getToken } from "./token";
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://nestfinder-app-backend.onrender.com";
 
 async function request(path: string, opts: RequestInit = {}) {
   const token = await getToken();
