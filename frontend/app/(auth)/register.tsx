@@ -8,7 +8,7 @@ import { colors, spacing, radius, type } from "@/src/lib/theme";
 
 export default function Register() {
   const router = useRouter();
-  const { register, loginWithGoogle } = useAuth();
+  const { register } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -25,16 +25,6 @@ export default function Register() {
       router.replace("/(tabs)");
     } catch (e: any) {
       setErr(e.message || "Signup failed");
-    } finally { setBusy(false); }
-  };
-
-  const google = async () => {
-    setErr(""); setBusy(true);
-    try {
-      await loginWithGoogle(role);
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      setErr(e.message || "Google signup failed");
     } finally { setBusy(false); }
   };
 
@@ -92,13 +82,6 @@ export default function Register() {
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryTxt}>Create Account</Text>}
           </Pressable>
 
-          <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerTxt}>or</Text><View style={styles.line} /></View>
-
-          <Pressable style={styles.google} onPress={google} disabled={busy} testID="register-google-btn">
-            <Ionicons name="logo-google" size={18} color={colors.onSurface} />
-            <Text style={styles.googleTxt}>Continue with Google</Text>
-          </Pressable>
-
           <Pressable onPress={() => router.replace("/(auth)/login")} style={styles.footerLink} testID="register-to-login">
             <Text style={styles.footerTxt}>Already have an account? <Text style={{ color: colors.brand, fontWeight: "500" }}>Sign in</Text></Text>
           </Pressable>
@@ -132,14 +115,6 @@ const styles = StyleSheet.create({
   err: { color: colors.error, fontSize: type.sm, marginBottom: spacing.sm },
   primary: { backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: 16, alignItems: "center", marginTop: spacing.md },
   primaryTxt: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
-  divider: { flexDirection: "row", alignItems: "center", marginVertical: spacing.lg, gap: spacing.md },
-  line: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerTxt: { color: colors.textSecondary, fontSize: type.sm },
-  google: {
-    flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 14,
-  },
-  googleTxt: { fontSize: type.lg, color: colors.onSurface },
   footerLink: { marginTop: spacing.xl, alignItems: "center" },
   footerTxt: { color: colors.textSecondary, fontSize: type.base },
 });

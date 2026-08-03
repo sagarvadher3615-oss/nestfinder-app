@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+
+  # ── MongoDB ────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: nestfinder-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - nestfinder
+
+  # ── Backend (FastAPI) ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nestfinder-backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: nestfinder
+      JWT_SECRET: nestfinder-super-secret-key-change-in-production
+    ports:
+      - "8000:8000"
+    networks:
+      - nestfinder
+
+  # ── Frontend (Expo Web) ────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nestfinder-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      EXPO_PUBLIC_BACKEND_URL: http://localhost:8000
+    ports:
+      - "8081:8081"
+    networks:
+      - nestfinder
+
+volumes:
+  mongo_data:
+
+networks:
+  nestfinder:
+    driver: bridge
