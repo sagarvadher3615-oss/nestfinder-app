@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.nestsearch.ybghsx",
+      "bundleIdentifier": "com.nestfinder.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Upload photos of your rental property"
       }
@@ -21,7 +21,7 @@
         "backgroundColor": "#5C715E"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.nestsearch.ybghsx",
+      "package": "com.nestfinder.app",
       "permissions": ["READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE"]
     },
     "web": {

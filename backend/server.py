@@ -67,11 +67,6 @@ class LoginIn(BaseModel):
     password: str
 
 
-class GoogleSessionIn(BaseModel):
-    session_token: str
-    role: Optional[Role] = "tenant"
-
-
 class TokenOut(BaseModel):
     token: str
     user: User
@@ -152,20 +147,7 @@ async def get_current_user(request: Request) -> User:
         raise HTTPException(status_code=401, detail="Missing token")
     token = auth[7:]
 
-    # try emergent session_token first
-    sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
-    if sess:
-        exp = sess.get("expires_at")
-        if exp and exp.tzinfo is None:
-            exp = exp.replace(tzinfo=timezone.utc)
-        if exp and exp < datetime.now(timezone.utc):
-            raise HTTPException(status_code=401, detail="Session expired")
-        user_doc = await db.users.find_one({"user_id": sess["user_id"]}, {"_id": 0, "password_hash": 0})
-        if not user_doc:
-            raise HTTPException(status_code=401, detail="User not found")
-        return User(**user_doc)
-
-    # try JWT
+    # decode JWT
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
         uid = payload["sub"]
@@ -214,52 +196,6 @@ async def login(inp: LoginIn):
     return TokenOut(token=token, user=User(**doc))
 
 
-@api.post("/auth/session", response_model=TokenOut)
-async def google_session(inp: GoogleSessionIn):
-    # Verify with Emergent
-    async with httpx.AsyncClient(timeout=15) as hc:
-        r = await hc.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": inp.session_token},
-        )
-    if r.status_code != 200:
-        raise HTTPException(status_code=401, detail="Google auth failed")
-    data = r.json()
-    email = data.get("email", "").lower()
-    if not email:
-        raise HTTPException(status_code=401, detail="Missing email from Google")
-
-    existing = await db.users.find_one({"email": email}, {"_id": 0})
-    if existing:
-        user_id = existing["user_id"]
-    else:
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({
-            "user_id": user_id,
-            "name": data.get("name") or email.split("@")[0],
-            "email": email,
-            "phone": None,
-            "role": inp.role or "tenant",
-            "avatar": data.get("picture"),
-            "auth_provider": "google",
-            "created_at": datetime.now(timezone.utc),
-        })
-
-    # store session
-    await db.user_sessions.update_one(
-        {"session_token": data["session_token"]},
-        {"$set": {
-            "session_token": data["session_token"],
-            "user_id": user_id,
-            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
-            "created_at": datetime.now(timezone.utc),
-        }},
-        upsert=True,
-    )
-    doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-    return TokenOut(token=data["session_token"], user=User(**doc))
-
-
 @api.get("/auth/me", response_model=User)
 async def me(user: User = Depends(get_current_user)):
     return user
@@ -267,10 +203,6 @@ async def me(user: User = Depends(get_current_user)):
 
 @api.post("/auth/logout")
 async def logout(request: Request):
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        token = auth[7:]
-        await db.user_sessions.delete_one({"session_token": token})
     return {"ok": True}
 
 
@@ -575,8 +507,6 @@ async def on_startup():
     # indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
-    await db.user_sessions.create_index("session_token", unique=True)
-    await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.properties.create_index("property_id", unique=True)
     await db.bookings.create_index("booking_id", unique=True)
     # Migration: ensure all properties have a status field
