@@ -21,7 +21,7 @@ export default function TabsLayout() {
   // Bottom gap below the tab icons.
   //   - Web: fixed 4px — very close to the browser edge, matches Instagram.
   //   - Native: respect the phone's home-indicator safe area, min 8px.
-  const bottomPad = Platform.OS === "web" ? 4 : Math.max(insets.bottom, 8);
+  const bottomPad = Platform.OS === "web" ? 5 : Math.max(insets.bottom, 8);
 
   return (
     <Tabs
@@ -34,8 +34,8 @@ export default function TabsLayout() {
           backgroundColor: colors.surfaceSecondary,
           borderTopWidth: 0,
           elevation: 0,
-          height: 52 + bottomPad,
-          paddingTop: 8,
+          height: 48 + bottomPad,
+          paddingTop: 5,
           paddingBottom: bottomPad,
           paddingHorizontal: 8,
           shadowColor: "#000",
