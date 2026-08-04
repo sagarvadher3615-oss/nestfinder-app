@@ -136,6 +136,11 @@ export default function PropertyDetail() {
             colors={["rgba(0,0,0,0.4)", "transparent"]}
             style={{ position: "absolute", top: 0, left: 0, right: 0, height: 100 }}
           />
+          {/* Bottom gradient */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.3)"]}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80 }}
+          />
           <Pressable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()} testID="detail-back-btn">
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
@@ -149,12 +154,43 @@ export default function PropertyDetail() {
               </Pressable>
             )}
           </View>
+
+          {/* Image counter badge */}
+          {prop.images.length > 1 && (
+            <View style={styles.imgCounter}>
+              <Ionicons name="images-outline" size={12} color="#fff" />
+              <Text style={styles.imgCounterTxt}>{gIdx + 1} / {prop.images.length}</Text>
+            </View>
+          )}
+
+          {/* Dot indicators */}
           {prop.images.length > 1 && (
             <View style={styles.dots}>
               {prop.images.map((_, i) => (
                 <View key={i} style={[styles.dot, gIdx === i && styles.dotActive]} />
               ))}
             </View>
+          )}
+
+          {/* Thumbnail strip */}
+          {prop.images.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.thumbStrip}
+              contentContainerStyle={styles.thumbStripContent}
+            >
+              {prop.images.map((img, i) => (
+                <Pressable
+                  key={i}
+                  onPress={() => setGIdx(i)}
+                  style={[styles.thumbItem, gIdx === i && styles.thumbItemActive]}
+                >
+                  <Image source={img} style={styles.thumbImg} contentFit="cover" />
+                  {gIdx !== i && <View style={styles.thumbDim} />}
+                </Pressable>
+              ))}
+            </ScrollView>
           )}
         </View>
 
@@ -329,9 +365,26 @@ const styles = StyleSheet.create({
     position: "absolute", left: spacing.md, width: 40, height: 40, borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center",
   },
-  dots: { position: "absolute", bottom: spacing.md, alignSelf: "center", flexDirection: "row", gap: 6 },
+  dots: { position: "absolute", bottom: 56, alignSelf: "center", flexDirection: "row", gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.5)" },
   dotActive: { backgroundColor: "#fff", width: 18 },
+  imgCounter: {
+    position: "absolute", top: 12, alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.45)", borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    left: "50%", transform: [{ translateX: -30 }],
+  },
+  imgCounterTxt: { color: "#fff", fontSize: type.sm, fontWeight: "600" },
+  thumbStrip: { position: "absolute", bottom: 0, left: 0, right: 0 },
+  thumbStripContent: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm, gap: spacing.xs },
+  thumbItem: {
+    width: 52, height: 40, borderRadius: radius.sm,
+    overflow: "hidden", borderWidth: 2, borderColor: "transparent",
+  },
+  thumbItemActive: { borderColor: "#fff" },
+  thumbImg: { width: "100%", height: "100%" },
+  thumbDim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)" },
   body: { padding: spacing.lg, marginTop: -20, backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   badge: { alignSelf: "flex-start", backgroundColor: colors.brandTertiary, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },

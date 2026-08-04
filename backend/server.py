@@ -236,6 +236,27 @@ async def logout(request: Request):
     return {"ok": True}
 
 
+class ResetPasswordIn(BaseModel):
+    email: EmailStr
+    new_password: str
+
+
+@api.post("/auth/reset-password")
+async def reset_password(inp: ResetPasswordIn):
+    doc = await db.users.find_one({"email": inp.email.lower()}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    if doc.get("auth_provider") == "google":
+        raise HTTPException(status_code=400, detail="This account uses Google login")
+    if len(inp.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    await db.users.update_one(
+        {"email": inp.email.lower()},
+        {"$set": {"password_hash": hash_pw(inp.new_password)}}
+    )
+    return {"ok": True, "message": "Password updated successfully"}
+
+
 @api.patch("/auth/role")
 async def update_role(body: dict, user: User = Depends(get_current_user)):
     role = body.get("role")

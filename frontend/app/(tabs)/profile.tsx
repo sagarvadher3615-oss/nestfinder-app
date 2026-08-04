@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Switch } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,11 +9,13 @@ import { useAuth } from "@/src/lib/auth";
 import { api } from "@/src/lib/api";
 import { useToast } from "@/src/lib/toast";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { useTheme, ThemeMode } from "@/src/lib/theme-context";
 
 export default function Profile() {
   const { user, logout, refresh } = useAuth();
   const router = useRouter();
   const toast = useToast();
+  const { mode, isDark, setMode } = useTheme();
   const [busy, setBusy] = useState(false);
   const [kycBusy, setKycBusy] = useState(false);
   const [pollingKyc, setPollingKyc] = useState(false);
@@ -70,7 +72,7 @@ export default function Profile() {
   const kyc = user.kyc_status || "none";
 
   return (
-    <SafeAreaView style={styles.c} edges={["top"]} testID="profile-screen">
+    <SafeAreaView style={[styles.c, isDark && styles.cDark]} edges={["top"]} testID="profile-screen">
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <View style={styles.header}>
           <View style={styles.avatar}>
@@ -150,6 +152,43 @@ export default function Profile() {
         )}
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Appearance</Text>
+
+          {/* Dark Mode Toggle */}
+          <View style={styles.rowItem}>
+            <Ionicons name={isDark ? "moon" : "sunny-outline"} size={22} color={isDark ? "#7FA882" : colors.onSurface} />
+            <Text style={styles.rowTxt}>Dark Mode</Text>
+            <Switch
+              value={isDark}
+              onValueChange={(val) => setMode(val ? "dark" : "light")}
+              trackColor={{ false: colors.border, true: colors.brand }}
+              thumbColor={isDark ? "#fff" : "#fff"}
+              testID="dark-mode-toggle"
+            />
+          </View>
+
+          {/* Theme Mode Selector */}
+          <View style={styles.themeModeRow}>
+            {(["light", "system", "dark"] as ThemeMode[]).map(m => (
+              <Pressable
+                key={m}
+                onPress={() => setMode(m)}
+                style={[styles.themeModeBtn, mode === m && styles.themeModeBtnActive]}
+              >
+                <Ionicons
+                  name={m === "light" ? "sunny-outline" : m === "dark" ? "moon-outline" : "phone-portrait-outline"}
+                  size={16}
+                  color={mode === m ? colors.brand : colors.textSecondary}
+                />
+                <Text style={[styles.themeModeTxt, mode === m && styles.themeModeTxtActive]}>
+                  {m === "light" ? "Light" : m === "dark" ? "Dark" : "System"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
           <View style={styles.rowItem}>
             <Ionicons name="shield-checkmark-outline" size={22} color={colors.onSurface} />
@@ -172,6 +211,7 @@ export default function Profile() {
 
 const styles = StyleSheet.create({
   c: { flex: 1, backgroundColor: colors.surface },
+  cDark: { backgroundColor: "#0F1410" },
   header: { alignItems: "center", paddingTop: spacing.lg, paddingBottom: spacing.lg },
   avatar: {
     width: 84, height: 84, borderRadius: 42, backgroundColor: colors.brandTertiary,
@@ -201,4 +241,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
   },
   logoutTxt: { color: colors.error, fontSize: type.base, fontWeight: "500" },
+  themeModeRow: {
+    flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs,
+  },
+  themeModeBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: spacing.xs, paddingVertical: 10, borderRadius: radius.md,
+    backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: "transparent",
+  },
+  themeModeBtnActive: {
+    backgroundColor: colors.brandTertiary, borderColor: colors.brand,
+  },
+  themeModeTxt: { fontSize: type.sm, color: colors.textSecondary },
+  themeModeTxtActive: { color: colors.brand, fontWeight: "500" },
 });
