@@ -1,6 +1,32 @@
+import { Platform } from "react-native";
 import { getToken } from "./token";
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://nestfinder-app-backend.onrender.com";
+// ── Backend URL resolution ────────────────────────────────────────────────────
+// CRITICAL: On native (Android/iOS) localhost NEVER works — it points to the
+// device itself, not your computer. So we IGNORE any localhost value on native
+// and always use the production URL.
+const PROD_URL = "https://nestfinder-app-backend.onrender.com";
+
+function resolveBase(): string {
+  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+
+  // No env var set → use production
+  if (!envUrl) return PROD_URL;
+
+  // On native, reject localhost/127.0.0.1 — it can never work on a real device
+  const isLocalhost = /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(envUrl);
+  if (Platform.OS !== "web" && isLocalhost) {
+    console.warn(`[api] Ignoring localhost URL "${envUrl}" on native — using ${PROD_URL}`);
+    return PROD_URL;
+  }
+
+  return envUrl;
+}
+
+const BASE = resolveBase();
+
+// Log once at startup so the URL is visible in logcat / browser console
+console.log(`[api] Backend URL: ${BASE}`);
 
 async function request(path: string, opts: RequestInit = {}) {
   const token = await getToken();
@@ -9,9 +35,42 @@ async function request(path: string, opts: RequestInit = {}) {
     ...(opts.headers as Record<string, string>),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${BASE}/api${path}`, { ...opts, headers });
+
+  const url = `${BASE}/api${path}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, { ...opts, headers });
+  } catch (e: any) {
+    // Transport-level failure (DNS, connection refused, TLS, cleartext blocked)
+    console.error(`[api] Network failure calling ${url}:`, e?.message);
+    const err: any = new Error(
+      `Cannot reach server. Please check your internet connection and try again.`
+    );
+    err.isNetworkError = true;
+    err.url = url;
+    throw err;
+  }
+
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+
+  let data: any = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Server returned HTML (e.g. Render cold-start 502 page)
+      console.error(`[api] Non-JSON response from ${url}:`, text.slice(0, 200));
+      const err: any = new Error(
+        res.status >= 500
+          ? "Server is starting up. Please wait a moment and try again."
+          : `Unexpected server response (HTTP ${res.status})`
+      );
+      err.status = res.status;
+      throw err;
+    }
+  }
+
   if (!res.ok) {
     const err: any = new Error(data.detail || `HTTP ${res.status}`);
     err.status = res.status;
