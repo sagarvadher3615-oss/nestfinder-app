@@ -2,7 +2,7 @@ import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
 import { colors } from "@/src/lib/theme";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabsLayout() {
@@ -18,10 +18,11 @@ export default function TabsLayout() {
 
   const isLandlord = user.role === "landlord";
 
-  // Instagram-style tab bar: icons only, sits close to the bottom edge.
-  // On native, respect the phone's safe-area (home indicator).
-  // On web, use a small 12px gap — matches Instagram's spacing.
-  const bottomPad = Math.max(insets.bottom, 12);
+  // Bottom gap below the tab icons.
+  //   - Web: fixed 12px (Instagram-like). safe-area insets from the browser
+  //          are unreliable and often too large.
+  //   - Native: respect the phone's home-indicator safe area, min 8px.
+  const bottomPad = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
 
   return (
     <Tabs
