@@ -19,10 +19,9 @@ export default function TabsLayout() {
   const isLandlord = user.role === "landlord";
 
   // Bottom gap below the tab icons.
-  //   - Web: fixed 12px (Instagram-like). safe-area insets from the browser
-  //          are unreliable and often too large.
+  //   - Web: fixed 4px — very close to the browser edge, matches Instagram.
   //   - Native: respect the phone's home-indicator safe area, min 8px.
-  const bottomPad = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
+  const bottomPad = Platform.OS === "web" ? 4 : Math.max(insets.bottom, 8);
 
   return (
     <Tabs
@@ -35,8 +34,8 @@ export default function TabsLayout() {
           backgroundColor: colors.surfaceSecondary,
           borderTopWidth: 0,
           elevation: 0,
-          height: 56 + bottomPad,
-          paddingTop: 12,
+          height: 52 + bottomPad,
+          paddingTop: 8,
           paddingBottom: bottomPad,
           paddingHorizontal: 8,
           shadowColor: "#000",
