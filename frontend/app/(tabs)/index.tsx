@@ -42,53 +42,20 @@ export default function Home() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  // Header that scrolls WITH the list
+  // Only filter chips + sort scroll with the list
   const ListHeader = () => (
     <View>
-      {/* Top header — title + map button */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
-          <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {!isLandlord && (
-            <Pressable style={styles.mapBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
-              <Ionicons name="map-outline" size={16} color={colors.brand} />
-              <Text style={styles.mapBtnTxt}>Map</Text>
-            </Pressable>
-          )}
-          {isLandlord && (
-            <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
-              <Ionicons name="add" size={22} color="#fff" />
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* Property type filter chips */}
       {!isLandlord && (
         <View style={styles.chipsWrap}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsContent}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
             {PROPERTY_TYPES.map(t => (
-              <Pressable
-                key={t}
-                testID={`chip-${t}`}
-                onPress={() => setFilter(t)}
-                style={[styles.chip, filter === t && styles.chipActive]}
-              >
+              <Pressable key={t} testID={`chip-${t}`} onPress={() => setFilter(t)} style={[styles.chip, filter === t && styles.chipActive]}>
                 <Text style={[styles.chipTxt, filter === t && styles.chipTxtActive]}>{t}</Text>
               </Pressable>
             ))}
           </ScrollView>
         </View>
       )}
-
-      {/* Sort chips */}
       {!isLandlord && (
         <View style={styles.sortWrap}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
@@ -116,15 +83,34 @@ export default function Home() {
 
   return (
     <SafeAreaView style={styles.c} edges={["top"]} testID="home-screen">
-      {loading ? (
-        <View style={styles.centerBox}>
-          <ListHeader />
-          <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.xl }} />
+
+      {/* FIXED — always stays at top */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
+          <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
         </View>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {!isLandlord && (
+            <Pressable style={styles.mapBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
+              <Ionicons name="map-outline" size={16} color={colors.brand} />
+              <Text style={styles.mapBtnTxt}>Map</Text>
+            </Pressable>
+          )}
+          {isLandlord && (
+            <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
+              <Ionicons name="add" size={22} color="#fff" />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* SCROLLABLE — list with filters as header */}
+      {loading ? (
+        <View style={styles.centerBox}><ActivityIndicator color={colors.brand} /></View>
       ) : items.length === 0 ? (
         <View style={styles.centerBox}>
-          <ListHeader />
-          <Ionicons name="home-outline" size={48} color={colors.borderStrong} style={{ marginTop: spacing.xl }} />
+          <Ionicons name="home-outline" size={48} color={colors.borderStrong} />
           <Text style={styles.emptyTitle}>{isLandlord ? "No listings yet" : "No properties found"}</Text>
           <Text style={styles.emptySub}>{isLandlord ? "Add your first property to get started." : "Try clearing filters."}</Text>
           {isLandlord && (
@@ -138,7 +124,6 @@ export default function Home() {
           data={items}
           keyExtractor={i => i.property_id}
           renderItem={({ item }) => <PropertyCard item={item} />}
-          // Header scrolls WITH the list
           ListHeaderComponent={<ListHeader />}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
@@ -189,9 +174,9 @@ const styles = StyleSheet.create({
   sortChipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
   sortTxt: { fontSize: type.sm, color: colors.textSecondary },
   sortTxtActive: { color: colors.brand, fontWeight: "500" },
-  centerBox: { flex: 1, alignItems: "center" },
+  centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.xl },
   emptyTitle: { fontSize: type.lg, color: colors.onSurface, marginTop: spacing.md, fontWeight: "500" },
-  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center", paddingHorizontal: spacing.xl },
+  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center" },
   emptyBtn: { marginTop: spacing.md, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: radius.md },
   emptyBtnTxt: { color: "#fff", fontSize: type.base, fontWeight: "500" },
 });
