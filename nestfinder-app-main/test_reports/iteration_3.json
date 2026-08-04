@@ -1,0 +1,41 @@
+{
+  "summary": "Phase 2 feature batch (in-app chat + Leaflet map + property lat/lng) tested end-to-end. Backend: 63/63 pytest tests pass (18 new phase-2 tests + 19 phase-1 + 26 baseline). All chat cases verified — POST /api/chat/threads is idempotent per (tenant, landlord, property) tuple, returns 400 when landlord messages own property or property_id missing, 404 for unknown property, GET /api/chat/threads decorates other_name / other_verified / other_id for both tenant + landlord perspectives, GET /messages returns {thread, messages} and 403s for a 3rd user, POST /messages saves message, updates last_message + last_message_at, rejects empty text with 400 and outsider with 403. Property lat/lng: all 8 seed properties have populated lat/lng after migration, POST /api/properties auto-geocodes via Nominatim (verified populated for 'Mumbai' with lat=19.07/lng=72.87), explicit lat/lng honored. Phase-1 regressions all green — no drift in favorites, reviews, KYC, sort, available_only, auth, bookings, properties. Frontend: 10/10 critical flows verified on 390x844 mobile viewport. Tenant home shows top-right map icon (testID='home-map-btn') that navigates to /map; /map renders an iframe with Leaflet + OpenStreetMap tiles and 8 price-pin markers (₹7.5k … ₹55k). Landlord home does NOT show the map btn (matches spec 'top-right for tenants'). Property detail landlord card shows Message button for tenants, hidden for owner. Tapping Message creates/opens a thread and routes to /chat/{thread_id}; chat screen renders bubbles (mine right/green, theirs left/grey), input + send button work, and 5s polling correctly picks up landlord replies within ~6.5s. Profile > Messages navigates to /chat and lists conversations with correct last message. Deprecated packages detected: none. React Native Web deprecation warnings (shadow*, pointerEvents) still emit — non-blocking.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": ["Persisting RN-Web deprecation warnings for 'shadow*' style props and 'props.pointerEvents' (non-blocking; pre-existing from phase 1)."]},
+      {"screen": "chat/[id]", "issues": ["React DOM warning: 'React does not recognize the testID prop' — non-blocking, appears once (likely a raw View/Text passing testID down to a nested element on web). Cosmetic only, no functional impact."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase2.py",
+    "/app/backend/tests/test_phase1.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Silence RN-Web deprecation warnings by migrating 'shadow*' style props -> 'boxShadow' and moving 'pointerEvents' prop into style. Same as phase-1 action-item; still open.",
+    "(Optional) Investigate the single 'React does not recognize the testID prop' console warning that appears once on the chat thread screen — likely stems from spreading testID onto a DOM element in a custom wrapper.",
+    "(Nice-to-have) Add a testID on the Leaflet iframe's inner popup 'View →' link so Playwright can assert the popup navigation to /property/{id}. Currently the iframe srcdoc is Leaflet-rendered and not addressable via testID."
+  ],
+  "critical_code_review_comments": [
+    "server.py: chat endpoints are cleanly implemented with proper 400/403/404 status codes, no sync blocking, no _id leakage (projection {'_id':0} used consistently).",
+    "server.py has grown to ~840 lines — approaching the 700-line advisory threshold; consider splitting chat/reviews/kyc/favorites into sub-routers.",
+    "Nominatim geocoding uses a 6-second timeout with a proper User-Agent header and gracefully falls back to lat=None on any exception — good defensive design.",
+    "The tenant/landlord relationship for a chat thread is inferred from the property's landlord_id — this correctly rules out landlord-messages-self, but it also means a landlord user viewing another landlord's property could technically create a thread as 'tenant' side. Not a real leak (their user_id becomes tenant_id) but the semantic is worth documenting.",
+    "list_threads correctly enriches other_name / other_verified via a single grouped users.find batched by other_ids — good perf.",
+    "Chat polling on the frontend is a simple setInterval(5s) via useEffect — no exponential backoff on error, which is acceptable for a demo but worth noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase2.py (NEW — 18 tests covering chat + lat/lng)"
+  ],
+  "success_rate": {"backend": "100% (63/63)", "frontend": "100% (10/10 critical phase-2 flows verified)"},
+  "seed_data_creation": "Phase-2 tests create test threads on demo tenant+landlord+seed-property, a couple of TEST_ chat messages, and one TEST_geo_ property (auto-cleaned via DELETE at end of test). Chat threads/messages remain in DB (harmless, prefixed with TEST_ where user-facing). No production data modified.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL: https://nest-search-6.preview.emergentagent.com. Demo creds: tenant@nestfinder.app / Demo123! and landlord@nestfinder.app / Demo123!. Run tests via: cd /app && python -m pytest backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml. New Phase-2 testIDs: home-map-btn, map-screen, map-back-btn, map-iframe, detail-message-btn, chat-index-screen, chat-index-back, chat-thread-<tid>, chat-thread-screen, chat-back-btn, msg-<msg_id>, chat-input, chat-send-btn, profile-messages. Token localStorage key on web is 'nf_token' (NOT 'nf.token'). Polling interval on /chat/{id} is 5000ms; wait ~6.5s to observe other-side messages.",
+  "rca_of_issue": "No product bugs found. Only observation: on the first playwright pass, I initially used the wrong localStorage key ('nf.token') for auth injection; the app correctly bounced to /onboarding. Once switched to the actual key 'nf_token' (from /app/frontend/src/lib/token.ts), all authenticated flows worked. This is a test-agent-only observation, not an app bug."
+}

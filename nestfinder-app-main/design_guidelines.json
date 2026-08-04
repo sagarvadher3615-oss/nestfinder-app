@@ -1,0 +1,182 @@
+{
+  "app_name": "NestFinder",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A trustworthy, generous, and content-first marketplace where property photos shine and the layout feels naturally reassuring.",
+  "color": {
+    "surface": "#FAFAFA",
+    "onSurface": "#121412",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#121412",
+    "surfaceTertiary": "#F2F4F2",
+    "onSurfaceTertiary": "#4A544C",
+    "surfaceInverse": "#121412",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#5C715E",
+    "brandPrimary": "#5C715E",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#E0E8E1",
+    "onBrandSecondary": "#2C3B30",
+    "brandTertiary": "#ECF0ED",
+    "onBrandTertiary": "#4A544C",
+    "success": "#4B7A54",
+    "onSuccess": "#FFFFFF",
+    "warning": "#C28E3A",
+    "onWarning": "#FFFFFF",
+    "error": "#A85751",
+    "onError": "#FFFFFF",
+    "info": "#4A544C",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E5E5",
+    "borderStrong": "#CCCCCC",
+    "divider": "#E5E5E5"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use generous iOS-native padding. Content should never feel cramped. Standardize card gaps at md (12) and screen edges at lg (16).",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Bottom tab bar (must have a >70% surface tint underneath so it remains readable)",
+      "Sticky bottom CTA bar on the Property Details screen (Book Now)",
+      "Sticky headers when scrolling long lists of properties"
+    ],
+    "dont's": [
+      "Do not use glass on property cards in the feed",
+      "Do not use glass on form inputs or standard buttons"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Onboarding",
+      "purpose": "Introduce the value proposition and segment users into Tenant or Landlord roles.",
+      "states": {
+        "loading": "Centered spinner over the brand primary color.",
+        "empty": "N/A",
+        "error": "Standard alert toast."
+      },
+      "layout": "Full-bleed image scenes using `expo-image`. A gradient scrim (bottom-heavy, black/surfaceInverse) MUST sit between the image and the text. The bottom 40% contains the title, subtitle, and two buttons: 'I want to rent' (primary) and 'I want to list' (secondary/brandSecondary)."
+    },
+    {
+      "name": "HomeFeed",
+      "purpose": "Allow tenants to discover available properties with high-quality visual cards.",
+      "states": {
+        "loading": "Skeleton loaders for property cards (image block + 3 text lines).",
+        "empty": "Illustration of an empty house/nest + 'No properties found in this area' + 'Clear Filters' button.",
+        "error": "Icon + 'Could not load properties' + 'Retry' button."
+      },
+      "layout": "Screen root padding `lg`. Top header contains user greeting and a prominent Search Input (surfaceTertiary bg, no border). Below it, a horizontally scrolling row of filter chips (All, 1BHK, PG, etc.). Below chips, a vertical list of Property Cards. Cards are 100% width of the container. Card anatomy: 4:3 image on top, wrapped in a surfaceSecondary container with `lg` radius. Below image: Title (lg), Location (sm, textSecondary), Price (xl, bold). Bottom of card: small icon row (beds, baths)."
+    },
+    {
+      "name": "SearchFilters",
+      "purpose": "Detailed filtering for tenants to find specific property matches.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Often implemented as a full-screen modal or sheet. Vertical stack of sections: Location (input), Price Range (slider/inputs), Property Type (selectable chips), Bedrooms (rounded square toggle buttons). Bottom sticky CTA 'Show X Properties' sitting in a glassmorphic container to ensure reachability."
+    },
+    {
+      "name": "PropertyDetail",
+      "purpose": "Showcase a single property comprehensively to convince the tenant to book.",
+      "states": {
+        "loading": "Skeleton loader matching the hero image and text blocks.",
+        "empty": "N/A",
+        "error": "Icon + 'Property no longer available' + 'Go Back' button."
+      },
+      "layout": "ScrollView. Top is a full-width horizontal image gallery (snap paging). Below the images, a content container with `lg` top radius that visually overlaps the image slightly. Content stack: Title, Location, Price (prominent), Divider, Amenities (grid of icon+text), Divider, Landlord Profile (Row: Avatar + Name + 'Verified' badge). A sticky bottom bar (glassmorphic, pinned above home indicator) holds the total monthly price on the left and a 'Book Now' primary button on the right."
+    },
+    {
+      "name": "BookingFlow",
+      "purpose": "Capture tenant details and move-in dates to request a booking.",
+      "states": {
+        "loading": "Spinner on the CTA button while submitting.",
+        "empty": "N/A",
+        "error": "Inline text errors below failed inputs."
+      },
+      "layout": "Single column form. Labels above inputs. Inputs use `surfaceTertiary` background with no borders and `md` radius. Date picker for move-in date. Sticky primary CTA 'Confirm Booking' at the bottom inside a KeyboardAvoidingView."
+    },
+    {
+      "name": "LandlordDashboard",
+      "purpose": "Allow landlords to view their listed properties and incoming requests.",
+      "states": {
+        "loading": "Skeleton list items.",
+        "empty": "Illustration + 'You haven\\'t listed any properties yet' + 'Add Property' CTA.",
+        "error": "Icon + 'Could not load your dashboard' + 'Retry' button."
+      },
+      "layout": "Tabbed view or sectioned list: 'My Properties' and 'Booking Requests'. Booking requests shown as list rows (Avatar of tenant, Name, Dates, 'Accept' / 'Decline' buttons). FAB (Floating Action Button) positioned at bottom-right for 'Add Property', using brandPrimary color and glass effect."
+    }
+  ],
+  "images": {
+    "onboarding_scene_1": {
+      "url": "https://images.pexels.com/photos/34574606/pexels-photo-34574606.jpeg",
+      "alt": "Sophisticated modern bedroom with blue walls and ample natural light"
+    },
+    "property_exterior_1": {
+      "url": "https://images.pexels.com/photos/18153132/pexels-photo-18153132.jpeg",
+      "alt": "Contemporary apartment building with white facades and glass balconies"
+    },
+    "property_interior_1": {
+      "url": "https://images.unsplash.com/photo-1560185893-a55cbc8c57e8",
+      "alt": "Cozy white bed frame in a modern bedroom"
+    },
+    "landlord_avatar": {
+      "url": "https://images.pexels.com/photos/10816007/pexels-photo-10816007.jpeg",
+      "alt": "Professional friendly man with glasses in a grey suit"
+    }
+  },
+  "haptics": {
+    "filter_chip_press": "selection",
+    "book_now_press": "impactMedium",
+    "submit_booking_success": "notificationSuccess",
+    "tab_bar_press": "selection"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the '1 iOS-Native Clean' personality. Use generous padding, especially on the edges of the Home Feed (lg: 16pt) and between cards (md: 12pt).",
+    "Colors MUST stick to the defined Sage Green (brand: #5C715E) palette. NO BLUES, INDIGOS, OR PURPLES. The app should feel earthy, trustworthy, and calm.",
+    "Implement the Sticky Bottom CTA pattern on the Property Detail and Search Filter screens. The CTA must be anchored to the bottom using absolute positioning + safe area padding, placed over a glassmorphic or solid surface background to ensure it's always reachable without scrolling.",
+    "Property images MUST have a gradient scrim (top-to-bottom, transparent to surfaceInverse) if any white text or icons (like a favorite heart or status badge) are placed on top of them. The bottom stop of the scrim should be >= 70% opacity.",
+    "Typography weights are capped at 500 max. Do NOT use 600, 700, bold, or black. Create hierarchy using font size (sm to 2xl) and color (textPrimary vs textSecondary).",
+    "Forms should not have borders. Use 'surfaceTertiary' as the background for input fields, rounded at 'md'. Labels always sit above inputs.",
+    "Use Phosphor icons consistently. Ensure all icons on a given screen share the same weight/style (e.g., all outlined or all filled)."
+  ]
+}
