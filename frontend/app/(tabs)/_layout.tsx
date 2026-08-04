@@ -18,10 +18,10 @@ export default function TabsLayout() {
 
   const isLandlord = user.role === "landlord";
 
-  // Instagram-style tab bar: icons only, floats above the bottom edge.
+  // Instagram-style tab bar: icons only, sits close to the bottom edge.
   // On native, respect the phone's safe-area (home indicator).
-  // On web, add extra breathing room from the browser edge.
-  const bottomPad = Math.max(insets.bottom, 24);
+  // On web, use a small 12px gap — matches Instagram's spacing.
+  const bottomPad = Math.max(insets.bottom, 12);
 
   return (
     <Tabs
