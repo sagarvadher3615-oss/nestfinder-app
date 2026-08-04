@@ -1,11 +1,10 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef } from "react";
-import { Platform } from "react-native";
+import { Platform, View, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
-import { useRouter } from "expo-router";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/lib/auth";
@@ -26,15 +25,12 @@ export default function RootLayout() {
   }, [loaded, error]);
 
   useEffect(() => {
-    // Register for push notifications on app start
     registerForPushNotifications();
 
-    // Listen for notifications received while app is open
     notifListener.current = Notifications.addNotificationReceivedListener(notification => {
       console.log("Notification received:", notification);
     });
 
-    // Handle tap on notification
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
       console.log("Notification tapped:", data);
@@ -48,7 +44,7 @@ export default function RootLayout() {
 
   if (!loaded && !error) return null;
 
-  return (
+  const app = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
@@ -63,4 +59,41 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+
+  // On web — center the app like a mobile frame
+  if (Platform.OS === "web") {
+    return (
+      <View style={styles.webOuter}>
+        <View style={styles.webPhone}>
+          {app}
+        </View>
+      </View>
+    );
+  }
+
+  return app;
 }
+
+const styles = StyleSheet.create({
+  webOuter: {
+    flex: 1,
+    backgroundColor: "#1a1a1a",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: "100vh" as any,
+  },
+  webPhone: {
+    width: 390,
+    height: "100vh" as any,
+    maxHeight: 844,
+    overflow: "hidden" as any,
+    backgroundColor: "#FAFAFA",
+    borderRadius: 0,
+    // Shadow to make it look like a phone
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 32,
+    elevation: 20,
+  },
+});
