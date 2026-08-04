@@ -60,15 +60,24 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 
-  // On web — center the app like a mobile frame
+  // On web (desktop only) — center the app like a mobile frame.
+  // On mobile web (narrow viewports) — render full-screen normally so the
+  // browser's own chrome (address bar) doesn't clip the tab bar.
   if (Platform.OS === "web") {
-    return (
-      <View style={styles.webOuter}>
-        <View style={styles.webPhone}>
-          {app}
+    // Detect mobile viewport via window.innerWidth. Anything ≤ 480 uses
+    // native-style full-screen layout.
+    const isDesktopWeb =
+      typeof window !== "undefined" && window.innerWidth > 480;
+
+    if (isDesktopWeb) {
+      return (
+        <View style={styles.webOuter}>
+          <View style={styles.webPhone}>
+            {app}
+          </View>
         </View>
-      </View>
-    );
+      );
+    }
   }
 
   return app;
@@ -76,20 +85,23 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   webOuter: {
-    flex: 1,
+    // 100dvh = "dynamic viewport height" — respects the browser's
+    // real visible area (accounts for the address bar).
+    height: "100dvh" as any,
+    width: "100%" as any,
     backgroundColor: "#1a1a1a",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: "100vh" as any,
+    padding: 16 as any,
   },
   webPhone: {
     width: 390,
-    height: "100vh" as any,
-    maxHeight: 844,
-    overflow: "hidden" as any,
+    height: 844,
+    maxWidth: "100%" as any,
+    maxHeight: "100%" as any,
     backgroundColor: "#FAFAFA",
-    borderRadius: 0,
-    // Shadow to make it look like a phone
+    borderRadius: 24,
+    overflow: "hidden" as any,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,

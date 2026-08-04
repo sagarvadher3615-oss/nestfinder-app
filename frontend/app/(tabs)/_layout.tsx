@@ -18,8 +18,9 @@ export default function TabsLayout() {
 
   const isLandlord = user.role === "landlord";
 
-  // Proper bottom padding — respects phone home indicator
-  const bottomPad = Math.max(insets.bottom, 8);
+  // Proper bottom padding — respects phone home indicator (native) or
+  // gives enough clearance above a mobile browser's address bar.
+  const bottomPad = Math.max(insets.bottom, 12);
 
   return (
     <Tabs
