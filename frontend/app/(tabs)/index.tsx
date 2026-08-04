@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -7,6 +7,7 @@ import { useAuth } from "@/src/lib/auth";
 import { api, Property } from "@/src/lib/api";
 import { colors, spacing, radius, type, PROPERTY_TYPES } from "@/src/lib/theme";
 import { PropertyCard } from "@/src/components/PropertyCard";
+import { useScrollToTop } from "@react-navigation/native";
 
 export default function Home() {
   const { user } = useAuth();
@@ -19,6 +20,10 @@ export default function Home() {
   const [availableOnly, setAvailableOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ref for FlatList — used by useScrollToTop to scroll to top when tab pressed
+  const listRef = useRef<FlatList>(null);
+  useScrollToTop(listRef);
 
   const load = useCallback(async () => {
     try {
@@ -125,6 +130,7 @@ export default function Home() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={items}
           keyExtractor={i => i.property_id}
           renderItem={({ item }) => <PropertyCard item={item} />}
