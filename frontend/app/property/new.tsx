@@ -1,12 +1,12 @@
-import { useState, useCallback } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { useState, useCallback, useEffect } from "react";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { api } from "@/src/lib/api";
-import { pickedLocation } from "@/src/lib/picked-location";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
 const TYPES = ["1BHK", "2BHK", "3BHK", "Single Room", "PG/Hostel"];
@@ -30,14 +30,44 @@ export default function NewProperty() {
   const [images, setImages] = useState<string[]>([]);
   const [status, setStatus] = useState<"available" | "rented" | "owned">("available");
   const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
+  const [locLoading, setLocLoading] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // When returning from pick-location screen, consume the picked coord
-  useFocusEffect(useCallback(() => {
-    const result = pickedLocation.consume();
-    if (result.hasValue) setCoord(result.value);
-  }, []));
+  // Auto-detect GPS location on mount
+  useEffect(() => {
+    (async () => {
+      setLocLoading(true);
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setCoord({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        }
+      } catch (e) {
+        console.warn("Location error:", e);
+      } finally {
+        setLocLoading(false);
+      }
+    })();
+  }, []);
+
+  const refreshLocation = async () => {
+    setLocLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission denied", "Please allow location access in your device settings.");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setCoord({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+    } catch (e) {
+      Alert.alert("Error", "Could not get location. Please try again.");
+    } finally {
+      setLocLoading(false);
+    }
+  };
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -117,24 +147,32 @@ export default function NewProperty() {
             <TextInput testID="new-location" style={styles.input} value={location} onChangeText={setLocation} placeholder="Area, City" placeholderTextColor={colors.textMuted} />
           </View>
 
+          {/* GPS Location Status */}
           <Pressable
-            style={[styles.pickLocBtn, coord && styles.pickLocBtnOn]}
-            onPress={() => {
-              const params = coord ? `?lat=${coord.lat}&lng=${coord.lng}` : "";
-              router.push(`/pick-location${params}` as any);
-            }}
-            testID="pick-location-btn"
+            style={[styles.locBox, coord && styles.locBoxOn]}
+            onPress={refreshLocation}
+            testID="location-status-btn"
           >
-            <Ionicons name={coord ? "location" : "location-outline"} size={18} color={coord ? colors.brand : colors.onSurfaceTertiary} />
+            {locLoading ? (
+              <ActivityIndicator size="small" color={colors.brand} />
+            ) : (
+              <Ionicons
+                name={coord ? "location" : "location-outline"}
+                size={18}
+                color={coord ? colors.brand : colors.onSurfaceTertiary}
+              />
+            )}
             <View style={{ flex: 1 }}>
-              <Text style={[styles.pickLocTxt, coord && { color: colors.brand, fontWeight: "500" }]}>
-                {coord ? "Exact location set" : "Pin exact location on map (optional)"}
+              <Text style={[styles.locTxt, coord && { color: colors.brand, fontWeight: "500" }]}>
+                {locLoading ? "Detecting your location..." : coord ? "Location detected ✓" : "Location not detected"}
               </Text>
               {coord && (
-                <Text style={styles.pickLocSub}>{coord.lat.toFixed(4)}, {coord.lng.toFixed(4)} · tap to change</Text>
+                <Text style={styles.locSub}>{coord.lat.toFixed(4)}, {coord.lng.toFixed(4)} · tap to refresh</Text>
               )}
             </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            {!locLoading && (
+              <Ionicons name="refresh-outline" size={16} color={colors.textMuted} />
+            )}
           </Pressable>
           <View style={styles.field}>
             <Text style={styles.label}>Monthly rent (₹)</Text>
@@ -242,12 +280,12 @@ const styles = StyleSheet.create({
   statusDotInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand },
   statusLabel: { fontSize: type.base, color: colors.onSurface },
   statusSub: { fontSize: type.sm, color: colors.textSecondary, marginTop: 2 },
-  pickLocBtn: {
+  locBox: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm,
     padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary,
     borderWidth: 1, borderColor: "transparent", marginBottom: spacing.sm,
   },
-  pickLocBtnOn: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
-  pickLocTxt: { fontSize: type.base, color: colors.onSurfaceTertiary },
-  pickLocSub: { fontSize: type.sm, color: colors.brand, marginTop: 2 },
+  locBoxOn: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
+  locTxt: { fontSize: type.base, color: colors.onSurfaceTertiary },
+  locSub: { fontSize: type.sm, color: colors.brand, marginTop: 2 },
 });

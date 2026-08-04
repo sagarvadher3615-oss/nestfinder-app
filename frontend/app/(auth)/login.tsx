@@ -66,6 +66,10 @@ export default function Login() {
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryTxt}>Sign In</Text>}
           </Pressable>
 
+          <Pressable onPress={() => router.push("/(auth)/forgot-password" as any)} style={styles.forgotLink}>
+            <Text style={styles.forgotTxt}>Forgot your password?</Text>
+          </Pressable>
+
           <Pressable onPress={() => router.replace("/(auth)/register")} style={styles.footerLink} testID="login-to-register">
             <Text style={styles.footerTxt}>
               Don&apos;t have an account? <Text style={{ color: colors.brand, fontWeight: "500" }}>Sign up</Text>
@@ -102,6 +106,8 @@ const styles = StyleSheet.create({
   primaryTxt: { color: "#fff", fontSize: type.lg, fontWeight: "500" },
   footerLink: { marginTop: spacing.xl, alignItems: "center" },
   footerTxt: { color: colors.textSecondary, fontSize: type.base },
+  forgotLink: { alignItems: "center", marginTop: spacing.md },
+  forgotTxt: { color: colors.brand, fontSize: type.base, fontWeight: "500" },
   demoBox: {
     marginTop: spacing.xl, padding: spacing.md, backgroundColor: colors.brandTertiary,
     borderRadius: radius.md,

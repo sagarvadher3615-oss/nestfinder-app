@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -7,6 +7,11 @@ import { useAuth } from "@/src/lib/auth";
 import { api, Property } from "@/src/lib/api";
 import { colors, spacing, radius, type, PROPERTY_TYPES } from "@/src/lib/theme";
 import { PropertyCard } from "@/src/components/PropertyCard";
+import { useScrollToTop } from "@react-navigation/native";
+
+// Fake item keys for the header sections
+const HEADER_KEY = "__header__";
+const FILTERS_KEY = "__filters__";
 
 export default function Home() {
   const { user } = useAuth();
@@ -19,6 +24,9 @@ export default function Home() {
   const [availableOnly, setAvailableOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const listRef = useRef<FlatList>(null);
+  useScrollToTop(listRef);
 
   const load = useCallback(async () => {
     try {
@@ -42,83 +50,119 @@ export default function Home() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
+  // Combine header items + property items into one flat array
+  // Index 0 = sticky title header
+  // Index 1 = scrollable filters
+  // Index 2+ = property cards
+  type ListItem =
+    | { type: "header"; key: string }
+    | { type: "filters"; key: string }
+    | { type: "property"; key: string; data: Property };
+
+  const listData: ListItem[] = [
+    { type: "header", key: HEADER_KEY },
+    { type: "filters", key: FILTERS_KEY },
+    ...items.map(p => ({ type: "property" as const, key: p.property_id, data: p })),
+  ];
+
+  const renderItem = ({ item }: { item: ListItem }) => {
+    if (item.type === "header") {
+      return (
+        <View style={styles.stickyHeader}>
+          <View>
+            <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
+            <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {!isLandlord && (
+              <Pressable style={styles.mapBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
+                <Ionicons name="map-outline" size={16} color={colors.brand} />
+                <Text style={styles.mapBtnTxt}>Map</Text>
+              </Pressable>
+            )}
+            {isLandlord && (
+              <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
+                <Ionicons name="add" size={22} color="#fff" />
+              </Pressable>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    if (item.type === "filters") {
+      return (
+        <View>
+          {!isLandlord && (
+            <View style={styles.chipsWrap}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
+                {PROPERTY_TYPES.map(t => (
+                  <Pressable key={t} testID={`chip-${t}`} onPress={() => setFilter(t)} style={[styles.chip, filter === t && styles.chipActive]}>
+                    <Text style={[styles.chipTxt, filter === t && styles.chipTxtActive]}>{t}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          {!isLandlord && (
+            <View style={styles.sortWrap}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
+                <Pressable testID="sort-newest" onPress={() => setSort("newest")} style={[styles.sortChip, sort === "newest" && styles.sortChipActive]}>
+                  <Ionicons name="time-outline" size={14} color={sort === "newest" ? colors.brand : colors.textSecondary} />
+                  <Text style={[styles.sortTxt, sort === "newest" && styles.sortTxtActive]}>Newest</Text>
+                </Pressable>
+                <Pressable testID="sort-price-asc" onPress={() => setSort("price_asc")} style={[styles.sortChip, sort === "price_asc" && styles.sortChipActive]}>
+                  <Ionicons name="arrow-up" size={14} color={sort === "price_asc" ? colors.brand : colors.textSecondary} />
+                  <Text style={[styles.sortTxt, sort === "price_asc" && styles.sortTxtActive]}>Price low</Text>
+                </Pressable>
+                <Pressable testID="sort-price-desc" onPress={() => setSort("price_desc")} style={[styles.sortChip, sort === "price_desc" && styles.sortChipActive]}>
+                  <Ionicons name="arrow-down" size={14} color={sort === "price_desc" ? colors.brand : colors.textSecondary} />
+                  <Text style={[styles.sortTxt, sort === "price_desc" && styles.sortTxtActive]}>Price high</Text>
+                </Pressable>
+                <Pressable testID="filter-available-only" onPress={() => setAvailableOnly(v => !v)} style={[styles.sortChip, availableOnly && styles.sortChipActive]}>
+                  <Ionicons name={availableOnly ? "checkmark-circle" : "ellipse-outline"} size={14} color={availableOnly ? colors.brand : colors.textSecondary} />
+                  <Text style={[styles.sortTxt, availableOnly && styles.sortTxtActive]}>Available only</Text>
+                </Pressable>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    if (item.type === "property") {
+      return <PropertyCard item={item.data} />;
+    }
+
+    return null;
+  };
+
   return (
     <SafeAreaView style={styles.c} edges={["top"]} testID="home-screen">
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
-          <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {!isLandlord && (
-            <Pressable style={styles.iconBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
-              <Ionicons name="map-outline" size={20} color={colors.brand} />
-            </Pressable>
-          )}
-          {isLandlord && (
-            <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
-              <Ionicons name="add" size={22} color="#fff" />
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {!isLandlord && (
-        <Pressable style={styles.searchBar} onPress={() => router.push("/(tabs)/search")} testID="home-search-bar">
-          <Ionicons name="search" size={18} color={colors.textSecondary} />
-          <Text style={styles.searchTxt}>Search by location or title</Text>
-        </Pressable>
-      )}
-
-      {!isLandlord && (
-        <View style={styles.chipsWrap}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsContent}
-          >
-            {PROPERTY_TYPES.map(t => (
-              <Pressable
-                key={t}
-                testID={`chip-${t}`}
-                onPress={() => setFilter(t)}
-                style={[styles.chip, filter === t && styles.chipActive]}
-              >
-                <Text style={[styles.chipTxt, filter === t && styles.chipTxtActive]}>{t}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {!isLandlord && (
-        <View style={styles.sortWrap}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
-            <Pressable testID="sort-newest" onPress={() => setSort("newest")} style={[styles.sortChip, sort === "newest" && styles.sortChipActive]}>
-              <Ionicons name="time-outline" size={14} color={sort === "newest" ? colors.brand : colors.textSecondary} />
-              <Text style={[styles.sortTxt, sort === "newest" && styles.sortTxtActive]}>Newest</Text>
-            </Pressable>
-            <Pressable testID="sort-price-asc" onPress={() => setSort("price_asc")} style={[styles.sortChip, sort === "price_asc" && styles.sortChipActive]}>
-              <Ionicons name="arrow-up" size={14} color={sort === "price_asc" ? colors.brand : colors.textSecondary} />
-              <Text style={[styles.sortTxt, sort === "price_asc" && styles.sortTxtActive]}>Price low</Text>
-            </Pressable>
-            <Pressable testID="sort-price-desc" onPress={() => setSort("price_desc")} style={[styles.sortChip, sort === "price_desc" && styles.sortChipActive]}>
-              <Ionicons name="arrow-down" size={14} color={sort === "price_desc" ? colors.brand : colors.textSecondary} />
-              <Text style={[styles.sortTxt, sort === "price_desc" && styles.sortTxtActive]}>Price high</Text>
-            </Pressable>
-            <Pressable testID="filter-available-only" onPress={() => setAvailableOnly(v => !v)} style={[styles.sortChip, availableOnly && styles.sortChipActive]}>
-              <Ionicons name={availableOnly ? "checkmark-circle" : "ellipse-outline"} size={14} color={availableOnly ? colors.brand : colors.textSecondary} />
-              <Text style={[styles.sortTxt, availableOnly && styles.sortTxtActive]}>Available only</Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-      )}
-
       {loading ? (
-        <View style={styles.centerBox}><ActivityIndicator color={colors.brand} /></View>
+        <View style={styles.centerBox}>
+          <View style={styles.stickyHeader}>
+            <View>
+              <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
+              <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
+            </View>
+          </View>
+          <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.xl }} />
+        </View>
       ) : items.length === 0 ? (
         <View style={styles.centerBox}>
-          <Ionicons name="home-outline" size={48} color={colors.borderStrong} />
+          <View style={styles.stickyHeader}>
+            <View>
+              <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
+              <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
+            </View>
+            {isLandlord && (
+              <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")}>
+                <Ionicons name="add" size={22} color="#fff" />
+              </Pressable>
+            )}
+          </View>
+          <Ionicons name="home-outline" size={48} color={colors.borderStrong} style={{ marginTop: spacing.xl }} />
           <Text style={styles.emptyTitle}>{isLandlord ? "No listings yet" : "No properties found"}</Text>
           <Text style={styles.emptySub}>{isLandlord ? "Add your first property to get started." : "Try clearing filters."}</Text>
           {isLandlord && (
@@ -129,12 +173,23 @@ export default function Home() {
         </View>
       ) : (
         <FlatList
-          data={items}
-          keyExtractor={i => i.property_id}
-          renderItem={({ item }) => <PropertyCard item={item} />}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
+          ref={listRef}
+          data={listData}
+          keyExtractor={i => i.key}
+          renderItem={renderItem}
+          // Only index 0 (title + map) stays sticky — filters scroll away!
+          stickyHeaderIndices={[0]}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.brand}
+              colors={[colors.brand]}
+            />
+          }
           testID="properties-list"
+          showsVerticalScrollIndicator={false}
         />
       )}
     </SafeAreaView>
@@ -143,9 +198,10 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   c: { flex: 1, backgroundColor: colors.surface },
-  header: {
+  stickyHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
+    backgroundColor: colors.surface,
   },
   hello: { fontSize: type.sm, color: colors.textSecondary },
   headerTitle: { fontSize: 24, color: colors.onSurface, fontWeight: "500", marginTop: 2 },
@@ -153,16 +209,13 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand,
     alignItems: "center", justifyContent: "center",
   },
-  iconBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandTertiary,
-    alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.brand,
+  mapBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: spacing.md, paddingVertical: 8,
+    borderRadius: radius.pill, backgroundColor: colors.brandTertiary,
+    borderWidth: 1, borderColor: colors.brand,
   },
-  searchBar: {
-    marginHorizontal: spacing.lg, marginTop: spacing.md,
-    flexDirection: "row", alignItems: "center", gap: spacing.sm,
-    backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 12,
-  },
-  searchTxt: { color: colors.textSecondary, fontSize: type.base },
+  mapBtnTxt: { fontSize: type.sm, color: colors.brand, fontWeight: "500" },
   chipsWrap: { height: 56, marginTop: spacing.sm },
   chipsContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: "center" },
   chip: {
@@ -183,9 +236,9 @@ const styles = StyleSheet.create({
   sortChipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
   sortTxt: { fontSize: type.sm, color: colors.textSecondary },
   sortTxtActive: { color: colors.brand, fontWeight: "500" },
-  centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.xl },
+  centerBox: { flex: 1, alignItems: "center" },
   emptyTitle: { fontSize: type.lg, color: colors.onSurface, marginTop: spacing.md, fontWeight: "500" },
-  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center" },
+  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center", paddingHorizontal: spacing.xl },
   emptyBtn: { marginTop: spacing.md, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: radius.md },
   emptyBtnTxt: { color: "#fff", fontSize: type.base, fontWeight: "500" },
 });

@@ -40,6 +40,8 @@ services:
     depends_on:
       - backend
     environment:
+      # Web-only local dev. NEVER use this value for native builds —
+      # localhost points to the device itself on Android/iOS.
       EXPO_PUBLIC_BACKEND_URL: http://localhost:8000
     ports:
       - "8081:8081"

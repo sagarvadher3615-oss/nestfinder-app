@@ -1,0 +1,5 @@
+[user]
+	name = NestFinder
+	email = dev@nestfinder.app
+[safe]
+	directory = *

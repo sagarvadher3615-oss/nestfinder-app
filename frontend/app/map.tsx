@@ -4,10 +4,11 @@ import { WebView, WebViewMessageEvent } from "react-native-webview";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { api, Property } from "@/src/lib/api";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
-function buildHtml(props: Property[]) {
+function buildHtml(props: Property[], userLat?: number, userLng?: number) {
   const pts = props
     .filter(p => typeof p.lat === "number" && typeof p.lng === "number")
     .map(p => ({
@@ -20,6 +21,9 @@ function buildHtml(props: Property[]) {
       status: p.status,
     }));
   const json = JSON.stringify(pts);
+  const centerLat = userLat ?? 12.9716;
+  const centerLng = userLng ?? 77.5946;
+  const hasUserLoc = userLat !== undefined && userLng !== undefined;
   return `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"/>
@@ -30,6 +34,7 @@ function buildHtml(props: Property[]) {
   .price-pin{background:#5C715E;color:#fff;padding:5px 10px;border-radius:16px;font:600 12px -apple-system,Roboto,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,0.25);white-space:nowrap;border:2px solid #fff;}
   .price-pin.rented{background:#A85751;}
   .price-pin.owned{background:#4A544C;}
+  .user-dot{width:16px;height:16px;background:#4285F4;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 3px rgba(66,133,244,0.3);}
   .leaflet-popup-content-wrapper{border-radius:12px;}
   .leaflet-popup-content{margin:10px 12px;font:400 13px -apple-system,Roboto,sans-serif;}
   .popup-title{font-weight:600;margin-bottom:2px;color:#121412;}
@@ -42,10 +47,19 @@ function buildHtml(props: Property[]) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   var pts = ${json};
-  var map = L.map('map', { zoomControl: true }).setView([12.9716, 77.5946], 11);
+  var map = L.map('map', { zoomControl: true }).setView([${centerLat}, ${centerLng}], ${hasUserLoc ? 13 : 11});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OSM', maxZoom: 19
   }).addTo(map);
+
+  ${hasUserLoc ? `
+  // Show user's current location as blue dot
+  var userIcon = L.divIcon({ className: '', html: '<div class="user-dot"></div>', iconSize: [16,16], iconAnchor: [8,8] });
+  L.marker([${centerLat}, ${centerLng}], { icon: userIcon, zIndexOffset: 1000 })
+    .addTo(map)
+    .bindPopup('<b>📍 You are here</b>');
+  ` : ''}
+
   var group = [];
   pts.forEach(function(p){
     var icon = L.divIcon({
@@ -62,7 +76,7 @@ function buildHtml(props: Property[]) {
     );
     group.push(m);
   });
-  if (group.length) {
+  if (group.length && !${hasUserLoc}) {
     var fg = L.featureGroup(group);
     map.fitBounds(fg.getBounds().pad(0.2));
   }
@@ -79,8 +93,11 @@ export default function MapScreen() {
   const router = useRouter();
   const [props, setProps] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userLat, setUserLat] = useState<number | undefined>(undefined);
+  const [userLng, setUserLng] = useState<number | undefined>(undefined);
 
   useEffect(() => {
+    // Load properties
     (async () => {
       try {
         const data = await api.get("/properties?limit=100");
@@ -88,9 +105,21 @@ export default function MapScreen() {
       } catch (e) { console.warn(e); }
       finally { setLoading(false); }
     })();
+
+    // Get user location
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setUserLat(loc.coords.latitude);
+          setUserLng(loc.coords.longitude);
+        }
+      } catch (e) { console.warn("Location error:", e); }
+    })();
   }, []);
 
-  const html = buildHtml(props);
+  const html = buildHtml(props, userLat, userLng);
 
   const onMessage = (e: WebViewMessageEvent | MessageEvent) => {
     try {

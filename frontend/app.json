@@ -8,11 +8,16 @@
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "updates": {
+      "enabled": false
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nestfinder.app",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Upload photos of your rental property"
+        "NSPhotoLibraryUsageDescription": "Upload photos of your rental property",
+        "NSLocationWhenInUseUsageDescription": "Used to auto-detect your location when adding a property",
+        "NSUserNotificationsUsageDescription": "Get notified about booking updates and new messages"
       }
     },
     "android": {
@@ -22,7 +27,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.nestfinder.app",
-      "permissions": ["READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE"]
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "RECEIVE_BOOT_COMPLETED", "VIBRATE", "POST_NOTIFICATIONS"]
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +43,14 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#5C715E",
+          "sounds": []
         }
       ]
     ],

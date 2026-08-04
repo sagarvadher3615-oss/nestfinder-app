@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
 import { api, Booking } from "@/src/lib/api";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { notify } from "@/src/lib/notifications";
 
 const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   pending: { bg: "#F5E9D2", fg: "#8A6620" },
@@ -35,6 +36,14 @@ export default function BookingsScreen() {
     try {
       const updated = await api.patch(`/bookings/${id}`, { status });
       setItems(prev => prev.map(b => b.booking_id === id ? updated : b));
+      // Send notification based on status
+      if (status === "accepted") {
+        await notify.bookingAccepted(updated.property_title);
+      } else if (status === "declined") {
+        await notify.bookingDeclined(updated.property_title);
+      } else if (status === "cancelled") {
+        await notify.bookingDeclined(updated.property_title);
+      }
     } catch (e: any) {
       console.warn(e.message);
     }

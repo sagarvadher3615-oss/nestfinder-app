@@ -1,0 +1,467 @@
+import { useState } from "react";
+
+const theme = {
+  navy: "#0F2C5A",
+  blue: "#1A56DB",
+  lightBlue: "#EEF4FF",
+  accent: "#F59E0B",
+  white: "#FFFFFF",
+  gray50: "#F8FAFC",
+  gray100: "#F1F5F9",
+  gray300: "#CBD5E1",
+  gray500: "#64748B",
+  gray700: "#334155",
+  green: "#10B981",
+  red: "#EF4444",
+};
+
+const listings = [
+  { id: 1, title: "Spacious 2 BHK Apartment", type: "2 BHK", location: "Koramangala, Bangalore", rent: 18000, deposit: 54000, furnishing: "Fully Furnished", for: "Family", rating: 4.8, reviews: 24, amenities: ["WiFi", "AC", "Parking", "Geyser"], verified: true, available: true, img: "🏢", landlord: "Rajesh Kumar", floor: "3rd / 5th" },
+  { id: 2, title: "Modern 1 BHK Flat", type: "1 BHK", location: "HSR Layout, Bangalore", rent: 12000, deposit: 36000, furnishing: "Semi Furnished", for: "Bachelor", rating: 4.5, reviews: 18, amenities: ["WiFi", "Geyser", "Laundry"], verified: true, available: true, img: "🏠", landlord: "Priya Sharma", floor: "1st / 4th" },
+  { id: 3, title: "Single Room with Kitchen", type: "Single Room", location: "Indiranagar, Bangalore", rent: 7500, deposit: 15000, furnishing: "Furnished", for: "Any", rating: 4.3, reviews: 11, amenities: ["WiFi", "AC"], verified: false, available: true, img: "🛏️", landlord: "Amit Patel", floor: "2nd / 3rd" },
+  { id: 4, title: "Premium 3 BHK Villa", type: "3 BHK", location: "Whitefield, Bangalore", rent: 32000, deposit: 96000, furnishing: "Fully Furnished", for: "Family", rating: 4.9, reviews: 31, amenities: ["WiFi", "AC", "Parking", "Garden", "Security"], verified: true, available: false, img: "🏡", landlord: "Sunita Reddy", floor: "Ground" },
+];
+
+const amenityIcons = { WiFi: "📶", AC: "❄️", Parking: "🅿️", Geyser: "🚿", Laundry: "🧺", Garden: "🌿", Security: "🔐" };
+const typeColors = { "Single Room": "#8B5CF6", "1 BHK": "#1A56DB", "2 BHK": "#10B981", "3 BHK": "#F59E0B", "PG": "#EF4444" };
+
+export default function App() {
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#E8EDF5" }}>
+      <RentalApp />
+    </div>
+  );
+}
+
+function RentalApp() {
+  const [screen, setScreen] = useState("login");
+  const [authMode, setAuthMode] = useState("login"); // login | signup
+  const [role, setRole] = useState(null); // tenant | landlord
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState(["", "", "", ""]);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [selectedListing, setSelectedListing] = useState(null);
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [savedIds, setSavedIds] = useState([1]);
+  const [activeTab, setActiveTab] = useState("home");
+  const [showBooking, setShowBooking] = useState(false);
+
+  const filters = ["All", "Single Room", "1 BHK", "2 BHK", "3 BHK", "PG"];
+  const filteredListings = activeFilter === "All" ? listings : listings.filter(l => l.type === activeFilter);
+  const toggleSave = (id) => setSavedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  // ─── SPLASH ───────────────────────────────────────────────────────────────
+  if (screen === "splash") return (
+    <div style={{ width: 390, height: 844, background: `linear-gradient(160deg, ${theme.navy} 0%, #1A3A6B 60%, #1A56DB 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "Georgia, serif", position: "relative", overflow: "hidden", borderRadius: 40, boxShadow: "0 40px 80px rgba(0,0,0,0.4)" }}>
+      {[300, 220, 140].map((s, i) => <div key={i} style={{ position: "absolute", width: s, height: s, borderRadius: "50%", border: `1px solid rgba(255,255,255,${0.06 - i * 0.015})`, top: "50%", left: "50%", transform: "translate(-50%,-50%)" }} />)}
+      <div style={{ fontSize: 72, marginBottom: 16 }}>🏠</div>
+      <div style={{ color: "white", fontSize: 34, fontWeight: "bold", letterSpacing: 1, marginBottom: 6 }}>NestFinder</div>
+      <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginBottom: 64, fontFamily: "sans-serif" }}>Your monthly rental companion</div>
+      <button onClick={() => setScreen("login")} style={{ background: theme.accent, color: theme.navy, border: "none", padding: "16px 52px", borderRadius: 50, fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: "sans-serif", boxShadow: "0 8px 24px rgba(245,158,11,0.4)" }}>Get Started →</button>
+      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 20, fontFamily: "sans-serif" }}>Rooms · 1BHK · 2BHK · 3BHK</div>
+    </div>
+  );
+
+  // ─── LOGIN ────────────────────────────────────────────────────────────────
+  if (screen === "login") return (
+    <div style={{ width: 390, height: 844, background: theme.white, display: "flex", flexDirection: "column", fontFamily: "sans-serif", borderRadius: 40, boxShadow: "0 40px 80px rgba(0,0,0,0.25)", overflow: "hidden" }}>
+      <div style={{ background: `linear-gradient(135deg, ${theme.navy}, #1A3A6B)`, padding: "60px 28px 40px", borderRadius: "0 0 40px 40px" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+        <div style={{ color: "white", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>Welcome Back!</div>
+        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Login to find your perfect home</div>
+      </div>
+
+      <div style={{ flex: 1, padding: "36px 28px" }}>
+        {/* Toggle */}
+        <div style={{ display: "flex", background: theme.gray100, borderRadius: 14, padding: 4, marginBottom: 32 }}>
+          {["login", "signup"].map(m => (
+            <button key={m} onClick={() => { setAuthMode(m); setScreen(m); }} style={{ flex: 1, padding: "10px", border: "none", borderRadius: 11, fontWeight: 700, fontSize: 14, cursor: "pointer", background: authMode === m ? theme.blue : "transparent", color: authMode === m ? "white" : theme.gray500, transition: "all 0.2s" }}>
+              {m === "login" ? "Login" : "Sign Up"}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: theme.navy, marginBottom: 8 }}>Phone Number</div>
+          <div style={{ display: "flex", border: `1.5px solid ${theme.gray300}`, borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ background: theme.gray100, padding: "14px 14px", fontSize: 14, color: theme.gray700, fontWeight: 600, borderRight: `1px solid ${theme.gray300}` }}>🇮🇳 +91</div>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Enter your number" maxLength={10} style={{ flex: 1, border: "none", outline: "none", padding: "14px", fontSize: 15, color: theme.navy }} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: theme.navy, marginBottom: 8 }}>Password</div>
+          <input type="password" placeholder="Enter your password" style={{ width: "100%", border: `1.5px solid ${theme.gray300}`, borderRadius: 14, padding: "14px", fontSize: 15, outline: "none", color: theme.navy, boxSizing: "border-box" }} />
+          <div style={{ textAlign: "right", marginTop: 8 }}>
+            <span style={{ fontSize: 12, color: theme.blue, cursor: "pointer", fontWeight: 600 }}>Forgot Password?</span>
+          </div>
+        </div>
+
+        <button onClick={() => setScreen("home")} style={{ width: "100%", background: theme.blue, color: "white", border: "none", borderRadius: 14, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 6px 20px rgba(26,86,219,0.35)", marginBottom: 20 }}>Login →</button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <div style={{ flex: 1, height: 1, background: theme.gray200 }} />
+          <span style={{ fontSize: 12, color: theme.gray500 }}>or continue with</span>
+          <div style={{ flex: 1, height: 1, background: theme.gray200 }} />
+        </div>
+
+        <div style={{ display: "flex", gap: 12 }}>
+          {[{ icon: "📱", label: "OTP Login" }, { icon: "G", label: "Google" }].map((btn, i) => (
+            <button key={i} onClick={() => i === 0 && setScreen("otp")} style={{ flex: 1, background: theme.gray50, border: `1.5px solid ${theme.gray300}`, borderRadius: 14, padding: "13px", fontSize: 14, fontWeight: 600, color: theme.gray700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <span style={{ fontSize: i === 1 ? 16 : 18, fontWeight: i === 1 ? 900 : "normal", color: i === 1 ? "#EA4335" : "inherit" }}>{btn.icon}</span> {btn.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 28, fontSize: 13, color: theme.gray500 }}>
+          Don't have an account?{" "}
+          <span onClick={() => setScreen("signup")} style={{ color: theme.blue, fontWeight: 700, cursor: "pointer" }}>Sign Up</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── SIGN UP ──────────────────────────────────────────────────────────────
+  if (screen === "signup") return (
+    <div style={{ width: 390, height: 844, background: theme.white, display: "flex", flexDirection: "column", fontFamily: "sans-serif", borderRadius: 40, boxShadow: "0 40px 80px rgba(0,0,0,0.25)", overflow: "hidden" }}>
+      <div style={{ background: `linear-gradient(135deg, ${theme.navy}, #1A3A6B)`, padding: "60px 28px 40px", borderRadius: "0 0 40px 40px" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🏠</div>
+        <div style={{ color: "white", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>Create Account</div>
+        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Join thousands finding homes monthly</div>
+      </div>
+
+      <div style={{ flex: 1, padding: "28px 28px", overflowY: "auto" }}>
+        {/* Toggle */}
+        <div style={{ display: "flex", background: theme.gray100, borderRadius: 14, padding: 4, marginBottom: 28 }}>
+          {["login", "signup"].map(m => (
+            <button key={m} onClick={() => setScreen(m)} style={{ flex: 1, padding: "10px", border: "none", borderRadius: 11, fontWeight: 700, fontSize: 14, cursor: "pointer", background: screen === m ? theme.blue : "transparent", color: screen === m ? "white" : theme.gray500 }}>
+              {m === "login" ? "Login" : "Sign Up"}
+            </button>
+          ))}
+        </div>
+
+        {[
+          { label: "Full Name", placeholder: "Enter your full name", type: "text", val: name, set: setName },
+          { label: "Email Address", placeholder: "Enter your email", type: "email", val: email, set: setEmail },
+        ].map((field, i) => (
+          <div key={i} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: theme.navy, marginBottom: 8 }}>{field.label}</div>
+            <input type={field.type} value={field.val} onChange={e => field.set(e.target.value)} placeholder={field.placeholder} style={{ width: "100%", border: `1.5px solid ${theme.gray300}`, borderRadius: 14, padding: "14px", fontSize: 15, outline: "none", color: theme.navy, boxSizing: "border-box" }} />
+          </div>
+        ))}
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: theme.navy, marginBottom: 8 }}>Phone Number</div>
+          <div style={{ display: "flex", border: `1.5px solid ${theme.gray300}`, borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ background: theme.gray100, padding: "14px", fontSize: 14, color: theme.gray700, fontWeight: 600, borderRight: `1px solid ${theme.gray300}` }}>🇮🇳 +91</div>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="10-digit number" maxLength={10} style={{ flex: 1, border: "none", outline: "none", padding: "14px", fontSize: 15, color: theme.navy }} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: theme.navy, marginBottom: 8 }}>Password</div>
+          <input type="password" placeholder="Create a strong password" style={{ width: "100%", border: `1.5px solid ${theme.gray300}`, borderRadius: 14, padding: "14px", fontSize: 15, outline: "none", color: theme.navy, boxSizing: "border-box" }} />
+        </div>
+
+        <button onClick={() => setScreen("role")} style={{ width: "100%", background: theme.blue, color: "white", border: "none", borderRadius: 14, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 6px 20px rgba(26,86,219,0.35)", marginBottom: 16 }}>Create Account →</button>
+
+        <div style={{ textAlign: "center", fontSize: 12, color: theme.gray500 }}>
+          By signing up you agree to our{" "}
+          <span style={{ color: theme.blue, fontWeight: 600 }}>Terms</span> &{" "}
+          <span style={{ color: theme.blue, fontWeight: 600 }}>Privacy Policy</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── OTP ──────────────────────────────────────────────────────────────────
+  if (screen === "otp") return (
+    <div style={{ width: 390, height: 844, background: theme.white, display: "flex", flexDirection: "column", fontFamily: "sans-serif", borderRadius: 40, boxShadow: "0 40px 80px rgba(0,0,0,0.25)", overflow: "hidden" }}>
+      <div style={{ background: `linear-gradient(135deg, ${theme.navy}, #1A3A6B)`, padding: "60px 28px 40px", borderRadius: "0 0 40px 40px" }}>
+        <button onClick={() => setScreen("login")} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 38, height: 38, color: "white", fontSize: 16, cursor: "pointer", marginBottom: 16 }}>←</button>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>📱</div>
+        <div style={{ color: "white", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>Verify Phone</div>
+        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>OTP sent to +91 {phone || "XXXXXXXXXX"}</div>
+      </div>
+
+      <div style={{ flex: 1, padding: "40px 28px" }}>
+        <div style={{ fontSize: 14, color: theme.gray700, marginBottom: 28, textAlign: "center" }}>
+          Enter the 4-digit code we sent to your number
+        </div>
+
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 36 }}>
+          {otp.map((val, i) => (
+            <input key={i} value={val} maxLength={1}
+              onChange={e => {
+                const newOtp = [...otp];
+                newOtp[i] = e.target.value;
+                setOtp(newOtp);
+              }}
+              style={{ width: 64, height: 64, textAlign: "center", fontSize: 24, fontWeight: 800, border: `2px solid ${val ? theme.blue : theme.gray300}`, borderRadius: 16, outline: "none", color: theme.navy, background: val ? theme.lightBlue : theme.white }}
+            />
+          ))}
+        </div>
+
+        <button onClick={() => setScreen("role")} style={{ width: "100%", background: theme.blue, color: "white", border: "none", borderRadius: 14, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 6px 20px rgba(26,86,219,0.35)", marginBottom: 20 }}>Verify & Continue →</button>
+
+        <div style={{ textAlign: "center", fontSize: 13, color: theme.gray500 }}>
+          Didn't receive the code?{" "}
+          <span style={{ color: theme.blue, fontWeight: 700, cursor: "pointer" }}>Resend OTP</span>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 12, fontSize: 12, color: theme.gray400 }}>Resend available in 00:30</div>
+      </div>
+    </div>
+  );
+
+  // ─── ROLE SELECTION ───────────────────────────────────────────────────────
+  if (screen === "role") return (
+    <div style={{ width: 390, height: 844, background: theme.white, display: "flex", flexDirection: "column", fontFamily: "sans-serif", borderRadius: 40, boxShadow: "0 40px 80px rgba(0,0,0,0.25)", overflow: "hidden" }}>
+      <div style={{ background: `linear-gradient(135deg, ${theme.navy}, #1A3A6B)`, padding: "60px 28px 40px", borderRadius: "0 0 40px 40px" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🎯</div>
+        <div style={{ color: "white", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>I am a...</div>
+        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Choose how you want to use NestFinder</div>
+      </div>
+
+      <div style={{ flex: 1, padding: "40px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
+        {[
+          { id: "tenant", icon: "🔍", title: "Tenant", desc: "I'm looking for a room or house to rent on monthly basis", color: theme.blue },
+          { id: "landlord", icon: "🏠", title: "Landlord / Owner", desc: "I want to list my property and find trusted tenants", color: theme.green },
+        ].map(r => (
+          <div key={r.id} onClick={() => setRole(r.id)}
+            style={{ border: `2.5px solid ${role === r.id ? r.color : theme.gray200}`, borderRadius: 20, padding: "24px", cursor: "pointer", background: role === r.id ? `${r.color}08` : theme.white, transition: "all 0.2s" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: role === r.id ? r.color : theme.gray100, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>{r.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: theme.navy, marginBottom: 4 }}>{r.title}</div>
+                <div style={{ fontSize: 13, color: theme.gray500, lineHeight: 1.4 }}>{r.desc}</div>
+              </div>
+              <div style={{ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${role === r.id ? r.color : theme.gray300}`, background: role === r.id ? r.color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 14 }}>
+                {role === r.id ? "✓" : ""}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div style={{ flex: 1 }} />
+
+        <button onClick={() => role && setScreen("home")} style={{ width: "100%", background: role ? theme.blue : theme.gray300, color: "white", border: "none", borderRadius: 14, padding: "16px", fontSize: 16, fontWeight: 700, cursor: role ? "pointer" : "default", boxShadow: role ? "0 6px 20px rgba(26,86,219,0.35)" : "none" }}>
+          Continue as {role ? (role === "tenant" ? "Tenant" : "Landlord") : "..."} →
+        </button>
+
+        <div style={{ textAlign: "center", fontSize: 12, color: theme.gray400 }}>You can switch roles anytime from settings</div>
+      </div>
+    </div>
+  );
+
+  // ─── DETAIL ───────────────────────────────────────────────────────────────
+  if (screen === "detail" && selectedListing) {
+    const l = selectedListing;
+    return (
+      <div style={{ width: 390, height: 844, background: theme.white, display: "flex", flexDirection: "column", fontFamily: "sans-serif", position: "relative", overflow: "hidden", borderRadius: 40, boxShadow: "0 40px 80px rgba(0,0,0,0.25)" }}>
+        <div style={{ height: 260, background: `linear-gradient(135deg, ${theme.navy}, #1A56DB)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", flexShrink: 0 }}>
+          <div style={{ fontSize: 90 }}>{l.img}</div>
+          <button onClick={() => setScreen("main")} style={{ position: "absolute", top: 20, left: 20, background: "rgba(255,255,255,0.2)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", color: "white", fontSize: 18, backdropFilter: "blur(8px)" }}>←</button>
+          <button onClick={() => toggleSave(l.id)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", fontSize: 18, backdropFilter: "blur(8px)" }}>{savedIds.includes(l.id) ? "❤️" : "🤍"}</button>
+          <div style={{ position: "absolute", bottom: 16, left: 20, background: typeColors[l.type] || theme.blue, color: "white", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>{l.type}</div>
+          {l.verified && <div style={{ position: "absolute", bottom: 16, right: 20, background: theme.green, color: "white", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>✓ Verified</div>}
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 100px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: theme.navy, flex: 1, lineHeight: 1.3 }}>{l.title}</div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: theme.blue }}>₹{l.rent.toLocaleString()}</div>
+              <div style={{ fontSize: 11, color: theme.gray500 }}>/month</div>
+            </div>
+          </div>
+          <div style={{ color: theme.gray500, fontSize: 13, marginBottom: 16 }}>📍 {l.location}</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            {[{ label: "For", value: l.for }, { label: "Floor", value: l.floor }, { label: "Furnishing", value: l.furnishing.replace(" Furnished", "") }].map((item, i) => (
+              <div key={i} style={{ flex: 1, background: theme.lightBlue, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: theme.gray500, marginBottom: 2 }}>{item.label}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: theme.navy }}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: theme.navy, marginBottom: 10 }}>Amenities</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {l.amenities.map(a => <div key={a} style={{ background: theme.gray100, borderRadius: 20, padding: "6px 14px", fontSize: 12, color: theme.gray700, display: "flex", alignItems: "center", gap: 4 }}>{amenityIcons[a] || "•"} {a}</div>)}
+            </div>
+          </div>
+          <div style={{ background: theme.gray50, borderRadius: 16, padding: 16, marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: theme.lightBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>👤</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: theme.navy }}>{l.landlord}</div>
+              <div style={{ fontSize: 11, color: theme.gray500 }}>Property Owner · ⭐ {l.rating} ({l.reviews} reviews)</div>
+            </div>
+            <button style={{ background: theme.lightBlue, border: "none", borderRadius: 20, padding: "8px 16px", color: theme.blue, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Chat</button>
+          </div>
+          <div style={{ background: theme.gray50, borderRadius: 16, padding: 16, display: "flex", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: 11, color: theme.gray500 }}>Security Deposit</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: theme.navy }}>₹{l.deposit.toLocaleString()}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, color: theme.gray500 }}>Availability</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: l.available ? theme.green : theme.red }}>{l.available ? "✓ Available Now" : "✗ Occupied"}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 20px 32px", background: "white", borderTop: `1px solid ${theme.gray100}`, display: "flex", gap: 12 }}>
+          <button style={{ flex: 1, background: theme.lightBlue, border: "none", borderRadius: 14, padding: "14px", color: theme.blue, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Schedule Visit</button>
+          <button onClick={() => setShowBooking(true)} style={{ flex: 2, background: l.available ? theme.blue : theme.gray300, border: "none", borderRadius: 14, padding: "14px", color: "white", fontSize: 14, fontWeight: 700, cursor: l.available ? "pointer" : "default" }}>{l.available ? "Book Now" : "Not Available"}</button>
+        </div>
+        {showBooking && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", borderRadius: 40 }}>
+            <div style={{ background: "white", borderRadius: "24px 24px 0 0", padding: "24px 20px 40px", width: "100%" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: theme.navy, marginBottom: 4 }}>Confirm Booking</div>
+              <div style={{ fontSize: 13, color: theme.gray500, marginBottom: 20 }}>{l.title}</div>
+              {[{ label: "Monthly Rent", value: `₹${l.rent.toLocaleString()}` }, { label: "Security Deposit", value: `₹${l.deposit.toLocaleString()}` }, { label: "First Payment", value: `₹${(l.rent + l.deposit).toLocaleString()}` }].map((row, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: i < 2 ? `1px solid ${theme.gray100}` : "none" }}>
+                  <span style={{ fontSize: 13, color: theme.gray500 }}>{row.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: i === 2 ? theme.blue : theme.navy }}>{row.value}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+                <button onClick={() => setShowBooking(false)} style={{ flex: 1, background: theme.gray100, border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 600, cursor: "pointer", color: theme.gray700 }}>Cancel</button>
+                <button style={{ flex: 2, background: theme.blue, border: "none", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700, color: "white", cursor: "pointer" }}>Pay & Book →</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── MAIN APP ─────────────────────────────────────────────────────────────
+  return (
+    <div style={{ width: 390, height: 844, background: theme.gray50, display: "flex", flexDirection: "column", fontFamily: "sans-serif", position: "relative", overflow: "hidden", borderRadius: 40, boxShadow: "0 40px 80px rgba(0,0,0,0.25)" }}>
+
+      {activeTab === "home" && (
+        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }}>
+          <div style={{ background: `linear-gradient(135deg, ${theme.navy} 0%, #1A3A6B 100%)`, padding: "52px 20px 28px", borderRadius: "0 0 28px 28px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+              <div>
+                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>Good morning 👋</div>
+                <div style={{ color: "white", fontSize: 22, fontWeight: 700, marginTop: 2 }}>Find Your Perfect Home</div>
+              </div>
+              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>👤</div>
+            </div>
+            <div style={{ background: "white", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>🔍</span>
+              <input placeholder="Search area, city..." style={{ border: "none", outline: "none", flex: 1, fontSize: 14, color: theme.gray700, background: "transparent" }} />
+              <div style={{ background: theme.blue, borderRadius: 10, padding: "6px 12px", color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Search</div>
+            </div>
+          </div>
+
+          <div style={{ padding: "20px 20px 0" }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+              {[{ icon: "🏠", count: "2,400+", label: "Listings" }, { icon: "🏙️", count: "12", label: "Cities" }, { icon: "✓", count: "1,800+", label: "Verified" }].map((s, i) => (
+                <div key={i} style={{ flex: 1, background: "white", borderRadius: 14, padding: "14px 10px", textAlign: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                  <div style={{ fontSize: 22, marginBottom: 2 }}>{s.icon}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: theme.navy }}>{s.count}</div>
+                  <div style={{ fontSize: 10, color: theme.gray500 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: theme.navy, marginBottom: 12 }}>Property Type</div>
+              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                {filters.map(f => <button key={f} onClick={() => setActiveFilter(f)} style={{ background: activeFilter === f ? theme.blue : "white", color: activeFilter === f ? "white" : theme.gray700, border: `1px solid ${activeFilter === f ? theme.blue : theme.gray300}`, borderRadius: 20, padding: "7px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{f}</button>)}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 16, fontWeight: 700, color: theme.navy, marginBottom: 12 }}>{filteredListings.length} Properties Found</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {filteredListings.map(l => (
+                <div key={l.id} onClick={() => { setSelectedListing(l); setScreen("detail"); }} style={{ background: "white", borderRadius: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden", cursor: "pointer" }}>
+                  <div style={{ height: 160, background: `linear-gradient(135deg, ${theme.navy}22, ${theme.blue}33)`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                    <div style={{ fontSize: 70 }}>{l.img}</div>
+                    <div style={{ position: "absolute", top: 12, left: 12, background: typeColors[l.type] || theme.blue, color: "white", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{l.type}</div>
+                    <button onClick={(e) => { e.stopPropagation(); toggleSave(l.id); }} style={{ position: "absolute", top: 10, right: 12, background: "white", border: "none", borderRadius: "50%", width: 32, height: 32, cursor: "pointer", fontSize: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>{savedIds.includes(l.id) ? "❤️" : "🤍"}</button>
+                    {!l.available && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.5)", color: "white", textAlign: "center", fontSize: 12, padding: "6px", fontWeight: 600 }}>Currently Occupied</div>}
+                  </div>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: theme.navy, flex: 1 }}>{l.title}</div>
+                      <div style={{ textAlign: "right" }}><span style={{ fontSize: 17, fontWeight: 800, color: theme.blue }}>₹{(l.rent / 1000).toFixed(0)}k</span><span style={{ fontSize: 10, color: theme.gray500 }}>/mo</span></div>
+                    </div>
+                    <div style={{ color: theme.gray500, fontSize: 12, marginTop: 3 }}>📍 {l.location}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {l.amenities.slice(0, 3).map(a => <span key={a} style={{ background: theme.lightBlue, borderRadius: 8, padding: "3px 8px", fontSize: 10, color: theme.blue }}>{amenityIcons[a]} {a}</span>)}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <span style={{ color: theme.accent, fontSize: 12 }}>⭐</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: theme.gray700 }}>{l.rating}</span>
+                        {l.verified && <span style={{ color: theme.green, fontSize: 12, marginLeft: 4 }}>✓</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "saved" && (
+        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }}>
+          <div style={{ padding: "52px 20px 20px" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: theme.navy, marginBottom: 4 }}>Saved Properties</div>
+            <div style={{ fontSize: 13, color: theme.gray500, marginBottom: 20 }}>{savedIds.length} saved</div>
+            {listings.filter(l => savedIds.includes(l.id)).map(l => (
+              <div key={l.id} onClick={() => { setSelectedListing(l); setScreen("detail"); }} style={{ background: "white", borderRadius: 16, padding: 16, marginBottom: 12, display: "flex", gap: 14, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                <div style={{ width: 72, height: 72, borderRadius: 12, background: theme.lightBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, flexShrink: 0 }}>{l.img}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.navy }}>{l.title}</div>
+                  <div style={{ fontSize: 12, color: theme.gray500, marginTop: 2 }}>📍 {l.location}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: theme.blue }}>₹{l.rent.toLocaleString()}/mo</span>
+                    <span style={{ fontSize: 11, color: l.available ? theme.green : theme.red, fontWeight: 600 }}>{l.available ? "Available" : "Occupied"}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {savedIds.length === 0 && <div style={{ textAlign: "center", padding: "60px 20px", color: theme.gray500 }}><div style={{ fontSize: 48, marginBottom: 12 }}>🤍</div><div style={{ fontSize: 16, fontWeight: 600 }}>No saved properties yet</div></div>}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "profile" && (
+        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }}>
+          <div style={{ background: `linear-gradient(135deg, ${theme.navy}, #1A3A6B)`, padding: "52px 20px 32px", borderRadius: "0 0 28px 28px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, marginBottom: 12 }}>👤</div>
+            <div style={{ color: "white", fontSize: 20, fontWeight: 700 }}>Rahul Sharma</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>rahul.sharma@email.com</div>
+            <div style={{ background: theme.accent, color: theme.navy, padding: "4px 16px", borderRadius: 20, fontSize: 12, fontWeight: 700, marginTop: 10 }}>Verified Tenant ✓</div>
+          </div>
+          <div style={{ padding: "20px" }}>
+            {[{ icon: "📋", label: "My Bookings", count: "2 Active" }, { icon: "❤️", label: "Saved Properties", count: `${savedIds.length} Saved` }, { icon: "💳", label: "Payment History", count: "View All" }, { icon: "📄", label: "Rental Agreements", count: "2 Docs" }, { icon: "🔔", label: "Notifications" }, { icon: "🛡️", label: "Privacy & Security" }, { icon: "❓", label: "Help & Support" }, { icon: "🚪", label: "Logout", count: "" }].map((item, i) => (
+              <div key={i} onClick={() => item.label === "Logout" && setScreen("login")} style={{ background: "white", borderRadius: 14, padding: "16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                <span style={{ fontSize: 20 }}>{item.icon}</span>
+                <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: item.label === "Logout" ? theme.red : theme.navy }}>{item.label}</span>
+                <span style={{ fontSize: 12, color: theme.gray500 }}>{item.count}</span>
+                <span style={{ color: theme.gray300, fontSize: 16 }}>›</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Nav */}
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "white", borderTop: `1px solid ${theme.gray100}`, display: "flex", padding: "10px 0 24px", borderRadius: "0 0 40px 40px" }}>
+        {[{ id: "home", icon: "🏠", label: "Home" }, { id: "search", icon: "🔍", label: "Search" }, { id: "saved", icon: "❤️", label: "Saved" }, { id: "profile", icon: "👤", label: "Profile" }].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div style={{ fontSize: 22, filter: activeTab === tab.id ? "none" : "grayscale(100%) opacity(0.5)" }}>{tab.icon}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: activeTab === tab.id ? theme.blue : theme.gray500 }}>{tab.label}</div>
+            {activeTab === tab.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: theme.blue }} />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
