@@ -2,14 +2,24 @@ import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
 import { colors } from "@/src/lib/theme";
-import { View, ActivityIndicator, Platform, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
-  if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}><ActivityIndicator color={colors.brand} /></View>;
+  const insets = useSafeAreaInsets();
+
+  if (loading) return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
+      <ActivityIndicator color={colors.brand} />
+    </View>
+  );
   if (!user) return <Redirect href="/onboarding" />;
 
   const isLandlord = user.role === "landlord";
+
+  // Proper bottom padding — respects phone home indicator
+  const bottomPad = Math.max(insets.bottom, 8);
 
   return (
     <Tabs
@@ -21,16 +31,14 @@ export default function TabsLayout() {
           backgroundColor: colors.surfaceSecondary,
           borderTopWidth: 0,
           elevation: 0,
-          height: Platform.OS === "ios" ? 88 : 68,
+          height: 56 + bottomPad,
           paddingTop: 10,
-          paddingBottom: Platform.OS === "ios" ? 28 : 10,
+          paddingBottom: bottomPad,
           paddingHorizontal: 8,
-          // Shadow for floating effect
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.06,
           shadowRadius: 12,
-          // Subtle top border replaced with shadow
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
         },
@@ -42,9 +50,6 @@ export default function TabsLayout() {
         tabBarItemStyle: {
           paddingVertical: 4,
           borderRadius: 12,
-        },
-        tabBarIconStyle: {
-          marginBottom: 0,
         },
       }}
     >
