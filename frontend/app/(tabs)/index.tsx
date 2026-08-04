@@ -64,13 +64,6 @@ export default function Home() {
       </View>
 
       {!isLandlord && (
-        <Pressable style={styles.searchBar} onPress={() => router.push("/(tabs)/search")} testID="home-search-bar">
-          <Ionicons name="search" size={18} color={colors.textSecondary} />
-          <Text style={styles.searchTxt}>Search by location or title</Text>
-        </Pressable>
-      )}
-
-      {!isLandlord && (
         <View style={styles.chipsWrap}>
           <ScrollView
             horizontal
@@ -157,12 +150,6 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandTertiary,
     alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.brand,
   },
-  searchBar: {
-    marginHorizontal: spacing.lg, marginTop: spacing.md,
-    flexDirection: "row", alignItems: "center", gap: spacing.sm,
-    backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 12,
-  },
-  searchTxt: { color: colors.textSecondary, fontSize: type.base },
   chipsWrap: { height: 56, marginTop: spacing.sm },
   chipsContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: "center" },
   chip: {
