@@ -51,8 +51,9 @@ export default function Home() {
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {!isLandlord && (
-            <Pressable style={styles.iconBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
-              <Ionicons name="map-outline" size={20} color={colors.brand} />
+            <Pressable style={styles.mapBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
+              <Ionicons name="map-outline" size={16} color={colors.brand} />
+              <Text style={styles.mapBtnTxt}>Map</Text>
             </Pressable>
           )}
           {isLandlord && (
@@ -146,10 +147,13 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand,
     alignItems: "center", justifyContent: "center",
   },
-  iconBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandTertiary,
-    alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.brand,
+  mapBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: spacing.md, paddingVertical: 8,
+    borderRadius: radius.pill, backgroundColor: colors.brandTertiary,
+    borderWidth: 1, borderColor: colors.brand,
   },
+  mapBtnTxt: { fontSize: type.sm, color: colors.brand, fontWeight: "500" },
   chipsWrap: { height: 56, marginTop: spacing.sm },
   chipsContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: "center" },
   chip: {

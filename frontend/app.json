@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.nestfinder.app",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Upload photos of your rental property"
+        "NSPhotoLibraryUsageDescription": "Upload photos of your rental property",
+        "NSLocationWhenInUseUsageDescription": "Used to auto-detect your location when adding a property"
       }
     },
     "android": {
@@ -22,7 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.nestfinder.app",
-      "permissions": ["READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE"]
+      "permissions": ["READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
     "web": {
       "bundler": "metro",
