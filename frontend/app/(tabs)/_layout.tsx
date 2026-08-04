@@ -2,7 +2,7 @@ import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
 import { colors } from "@/src/lib/theme";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabsLayout() {
@@ -18,99 +18,84 @@ export default function TabsLayout() {
 
   const isLandlord = user.role === "landlord";
 
-  // Proper bottom padding — respects phone home indicator (native) or
-  // gives enough clearance above a mobile browser's address bar.
-  const bottomPad = Math.max(insets.bottom, 12);
+  // Instagram-style tab bar: icons only, floats above the bottom edge.
+  // On native, respect the phone's safe-area (home indicator).
+  // On web, add extra breathing room from the browser edge.
+  const bottomPad = Math.max(insets.bottom, 24);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarInactiveTintColor: colors.onSurface,
+        tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: colors.surfaceSecondary,
           borderTopWidth: 0,
           elevation: 0,
           height: 56 + bottomPad,
-          paddingTop: 10,
+          paddingTop: 12,
           paddingBottom: bottomPad,
           paddingHorizontal: 8,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.06,
           shadowRadius: 12,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
-          marginTop: 2,
         },
         tabBarItemStyle: {
           paddingVertical: 4,
-          borderRadius: 12,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: isLandlord ? "Listings" : "Home",
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons name={focused ? (isLandlord ? "business" : "home") : (isLandlord ? "business-outline" : "home-outline")} size={22} color={color} />
-            </View>
+            <Ionicons
+              name={focused ? (isLandlord ? "business" : "home") : (isLandlord ? "business-outline" : "home-outline")}
+              size={28}
+              color={color}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
-          title: "Search",
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons name={focused ? "search" : "search-outline"} size={22} color={color} />
-            </View>
+            <Ionicons
+              name={focused ? "search" : "search-outline"}
+              size={28}
+              color={color}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
-          title: isLandlord ? "Requests" : "Bookings",
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons name={focused ? "calendar" : "calendar-outline"} size={22} color={color} />
-            </View>
+            <Ionicons
+              name={focused ? "calendar" : "calendar-outline"}
+              size={28}
+              color={color}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={24} color={color} />
-            </View>
+            <Ionicons
+              name={focused ? "person-circle" : "person-circle-outline"}
+              size={30}
+              color={color}
+            />
           ),
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  iconWrap: {
-    width: 44,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 16,
-  },
-  iconWrapActive: {
-    backgroundColor: "#ECF0ED",
-  },
-});
