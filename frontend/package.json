@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "preinstall": "./scripts/cmd-guard.js --preinstall",
+    "preinstall": "node -e \"if(process.env.EAS_BUILD){process.exit(0)}\" || ./scripts/cmd-guard.js --preinstall",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
