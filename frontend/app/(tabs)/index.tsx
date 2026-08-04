@@ -42,8 +42,10 @@ export default function Home() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  return (
-    <SafeAreaView style={styles.c} edges={["top"]} testID="home-screen">
+  // Header that scrolls WITH the list
+  const ListHeader = () => (
+    <View>
+      {/* Top header — title + map button */}
       <View style={styles.header}>
         <View>
           <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
@@ -64,6 +66,7 @@ export default function Home() {
         </View>
       </View>
 
+      {/* Property type filter chips */}
       {!isLandlord && (
         <View style={styles.chipsWrap}>
           <ScrollView
@@ -85,6 +88,7 @@ export default function Home() {
         </View>
       )}
 
+      {/* Sort chips */}
       {!isLandlord && (
         <View style={styles.sortWrap}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
@@ -107,12 +111,20 @@ export default function Home() {
           </ScrollView>
         </View>
       )}
+    </View>
+  );
 
+  return (
+    <SafeAreaView style={styles.c} edges={["top"]} testID="home-screen">
       {loading ? (
-        <View style={styles.centerBox}><ActivityIndicator color={colors.brand} /></View>
+        <View style={styles.centerBox}>
+          <ListHeader />
+          <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.xl }} />
+        </View>
       ) : items.length === 0 ? (
         <View style={styles.centerBox}>
-          <Ionicons name="home-outline" size={48} color={colors.borderStrong} />
+          <ListHeader />
+          <Ionicons name="home-outline" size={48} color={colors.borderStrong} style={{ marginTop: spacing.xl }} />
           <Text style={styles.emptyTitle}>{isLandlord ? "No listings yet" : "No properties found"}</Text>
           <Text style={styles.emptySub}>{isLandlord ? "Add your first property to get started." : "Try clearing filters."}</Text>
           {isLandlord && (
@@ -126,9 +138,12 @@ export default function Home() {
           data={items}
           keyExtractor={i => i.property_id}
           renderItem={({ item }) => <PropertyCard item={item} />}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
+          // Header scrolls WITH the list
+          ListHeaderComponent={<ListHeader />}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
           testID="properties-list"
+          showsVerticalScrollIndicator={false}
         />
       )}
     </SafeAreaView>
@@ -174,9 +189,9 @@ const styles = StyleSheet.create({
   sortChipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
   sortTxt: { fontSize: type.sm, color: colors.textSecondary },
   sortTxtActive: { color: colors.brand, fontWeight: "500" },
-  centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.xl },
+  centerBox: { flex: 1, alignItems: "center" },
   emptyTitle: { fontSize: type.lg, color: colors.onSurface, marginTop: spacing.md, fontWeight: "500" },
-  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center" },
+  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center", paddingHorizontal: spacing.xl },
   emptyBtn: { marginTop: spacing.md, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: radius.md },
   emptyBtnTxt: { color: "#fff", fontSize: type.base, fontWeight: "500" },
 });
