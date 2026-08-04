@@ -42,8 +42,31 @@ export default function Home() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  // Only filter chips + sort scroll with the list
-  const ListHeader = () => (
+  // Index 0 = sticky header (title + map)
+  // Index 1 = filter chips + sort (scrolls away)
+  const StickyHeader = () => (
+    <View style={styles.stickyHeader}>
+      <View>
+        <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
+        <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        {!isLandlord && (
+          <Pressable style={styles.mapBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
+            <Ionicons name="map-outline" size={16} color={colors.brand} />
+            <Text style={styles.mapBtnTxt}>Map</Text>
+          </Pressable>
+        )}
+        {isLandlord && (
+          <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
+            <Ionicons name="add" size={22} color="#fff" />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+
+  const FiltersHeader = () => (
     <View>
       {!isLandlord && (
         <View style={styles.chipsWrap}>
@@ -83,34 +106,15 @@ export default function Home() {
 
   return (
     <SafeAreaView style={styles.c} edges={["top"]} testID="home-screen">
-
-      {/* FIXED — always stays at top */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.hello}>Hi {user?.name?.split(" ")[0]} 👋</Text>
-          <Text style={styles.headerTitle}>{isLandlord ? "Your listings" : "Find your next nest"}</Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {!isLandlord && (
-            <Pressable style={styles.mapBtn} onPress={() => router.push("/map" as any)} testID="home-map-btn">
-              <Ionicons name="map-outline" size={16} color={colors.brand} />
-              <Text style={styles.mapBtnTxt}>Map</Text>
-            </Pressable>
-          )}
-          {isLandlord && (
-            <Pressable style={styles.addBtn} onPress={() => router.push("/property/new")} testID="landlord-add-btn">
-              <Ionicons name="add" size={22} color="#fff" />
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* SCROLLABLE — list with filters as header */}
       {loading ? (
-        <View style={styles.centerBox}><ActivityIndicator color={colors.brand} /></View>
+        <View style={styles.centerBox}>
+          <StickyHeader />
+          <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.xl }} />
+        </View>
       ) : items.length === 0 ? (
         <View style={styles.centerBox}>
-          <Ionicons name="home-outline" size={48} color={colors.borderStrong} />
+          <StickyHeader />
+          <Ionicons name="home-outline" size={48} color={colors.borderStrong} style={{ marginTop: spacing.xl }} />
           <Text style={styles.emptyTitle}>{isLandlord ? "No listings yet" : "No properties found"}</Text>
           <Text style={styles.emptySub}>{isLandlord ? "Add your first property to get started." : "Try clearing filters."}</Text>
           {isLandlord && (
@@ -124,9 +128,25 @@ export default function Home() {
           data={items}
           keyExtractor={i => i.property_id}
           renderItem={({ item }) => <PropertyCard item={item} />}
-          ListHeaderComponent={<ListHeader />}
+          // stickyHeaderIndices={[0]} makes index 0 stay fixed while rest scroll
+          ListHeaderComponent={
+            <View>
+              <StickyHeader />
+              <FiltersHeader />
+            </View>
+          }
+          stickyHeaderIndices={[0]}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
+          // RefreshControl covers the ENTIRE FlatList including sticky header
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.brand}
+              colors={[colors.brand]}
+              progressViewOffset={0}
+            />
+          }
           testID="properties-list"
           showsVerticalScrollIndicator={false}
         />
@@ -137,9 +157,10 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   c: { flex: 1, backgroundColor: colors.surface },
-  header: {
+  stickyHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
+    backgroundColor: colors.surface,
   },
   hello: { fontSize: type.sm, color: colors.textSecondary },
   headerTitle: { fontSize: 24, color: colors.onSurface, fontWeight: "500", marginTop: 2 },
@@ -174,9 +195,9 @@ const styles = StyleSheet.create({
   sortChipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
   sortTxt: { fontSize: type.sm, color: colors.textSecondary },
   sortTxtActive: { color: colors.brand, fontWeight: "500" },
-  centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.xl },
+  centerBox: { flex: 1, alignItems: "center" },
   emptyTitle: { fontSize: type.lg, color: colors.onSurface, marginTop: spacing.md, fontWeight: "500" },
-  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center" },
+  emptySub: { fontSize: type.base, color: colors.textSecondary, textAlign: "center", paddingHorizontal: spacing.xl },
   emptyBtn: { marginTop: spacing.md, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: radius.md },
   emptyBtnTxt: { color: "#fff", fontSize: type.base, fontWeight: "500" },
 });
