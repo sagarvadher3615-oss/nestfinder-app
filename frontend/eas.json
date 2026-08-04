@@ -12,10 +12,12 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "node": "20.0.0",
       "android": {
         "buildType": "apk",
         "env": {
-          "EXPO_PUBLIC_BACKEND_URL": "https://nestfinder-app-backend.onrender.com"
+          "EXPO_PUBLIC_BACKEND_URL": "https://nestfinder-app-backend.onrender.com",
+          "npm_config_ignore_scripts": "true"
         }
       }
     },
@@ -24,7 +26,8 @@
       "channel": "production",
       "android": {
         "env": {
-          "EXPO_PUBLIC_BACKEND_URL": "https://nestfinder-app-backend.onrender.com"
+          "EXPO_PUBLIC_BACKEND_URL": "https://nestfinder-app-backend.onrender.com",
+          "npm_config_ignore_scripts": "true"
         }
       }
     }
