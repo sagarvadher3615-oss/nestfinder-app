@@ -16,7 +16,7 @@ export default function TabsLayout() {
   if (!user) return <Redirect href="/onboarding" />;
 
   const isLandlord = user.role === "landlord";
-  const bottomPad = Platform.OS === "web" ? 5 : Math.max(insets.bottom, 8);
+  const bottomPad = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 12);
 
   return (
     <Tabs
