@@ -1,7 +1,6 @@
 import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
-import { colors } from "@/src/lib/theme";
 import { View, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -10,89 +9,71 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
 
   if (loading) return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
-      <ActivityIndicator color={colors.brand} />
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
+      <ActivityIndicator color="#2E7D32" />
     </View>
   );
   if (!user) return <Redirect href="/onboarding" />;
 
   const isLandlord = user.role === "landlord";
-
-  // Bottom gap below the tab icons.
-  //   - Web: fixed 4px — very close to the browser edge, matches Instagram.
-  //   - Native: respect the phone's home-indicator safe area, min 8px.
   const bottomPad = Platform.OS === "web" ? 5 : Math.max(insets.bottom, 8);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.onSurface,
-        tabBarShowLabel: false,
+        tabBarActiveTintColor: "#2E7D32",
+        tabBarInactiveTintColor: "#999",
         tabBarStyle: {
-          backgroundColor: colors.surfaceSecondary,
-          borderTopWidth: 0,
-          elevation: 0,
-          height: 48 + bottomPad,
-          paddingTop: 5,
+          backgroundColor: "#FFFFFF",
+          borderTopWidth: 1,
+          borderTopColor: "#f0f0f0",
+          height: 56 + bottomPad,
+          paddingTop: 8,
           paddingBottom: bottomPad,
-          paddingHorizontal: 8,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
+          paddingHorizontal: 4,
+          elevation: 0,
         },
-        tabBarItemStyle: {
-          paddingVertical: 4,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "500",
+          marginTop: 2,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
+          title: "Home",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? (isLandlord ? "business" : "home") : (isLandlord ? "business-outline" : "home-outline")}
-              size={28}
-              color={color}
-            />
+            <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
+          title: "Search",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "search" : "search-outline"}
-              size={28}
-              color={color}
-            />
+            <Ionicons name={focused ? "search" : "search-outline"} size={22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
+          title: isLandlord ? "Requests" : "Saved",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "calendar" : "calendar-outline"}
-              size={28}
-              color={color}
-            />
+            <Ionicons name={focused ? "heart" : "heart-outline"} size={22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
+          title: "Profile",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "person-circle" : "person-circle-outline"}
-              size={30}
-              color={color}
-            />
+            <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />
           ),
         }}
       />
