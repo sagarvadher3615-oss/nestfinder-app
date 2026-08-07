@@ -1,31 +1,104 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { useState } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/src/lib/auth";
 import { useFavorites } from "@/src/lib/favorites";
+import { useToast } from "@/src/lib/toast";
 
 // ── Menu items matching the reference design ─────────────────────────────────
 const MENU_ITEMS = [
-  { icon: "home-outline", label: "My Properties", sub: "Properties you have listed" },
-  { icon: "document-text-outline", label: "Property Enquiries", sub: "Track your enquiries and responses" },
-  { icon: "time-outline", label: "Search History", sub: "View your recent searches" },
-  { icon: "notifications-outline", label: "Price Alerts", sub: "Manage your price alerts" },
-  { icon: "folder-outline", label: "Documents", sub: "KYC, Documents and Agreements" },
-  { icon: "card-outline", label: "Payment & Transactions", sub: "View your payments and invoices" },
-  { icon: "gift-outline", label: "Refer & Earn", sub: "Invite friends and earn rewards" },
-  { icon: "help-circle-outline", label: "Help & Support", sub: "FAQs, support tickets and contact us" },
+  { icon: "home-outline", label: "My Properties", sub: "Properties you have listed", route: "/property/new" },
+  { icon: "document-text-outline", label: "Property Enquiries", sub: "Track your enquiries and responses", route: "/chat" },
+  { icon: "time-outline", label: "Search History", sub: "View your recent searches", route: "/(tabs)/search" },
+  { icon: "notifications-outline", label: "Price Alerts", sub: "Manage your price alerts", route: null },
+  { icon: "folder-outline", label: "Documents", sub: "KYC, Documents and Agreements", route: null },
+  { icon: "card-outline", label: "Payment & Transactions", sub: "View your payments and invoices", route: null },
+  { icon: "gift-outline", label: "Refer & Earn", sub: "Invite friends and earn rewards", route: null },
+  { icon: "help-circle-outline", label: "Help & Support", sub: "FAQs, support tickets and contact us", route: null },
 ] as const;
 
 export default function Profile() {
   const { user, logout } = useAuth();
   const { ids } = useFavorites();
   const router = useRouter();
+  const toast = useToast();
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   if (!user) return null;
 
   const savedCount = ids.size;
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const onNotifications = () => {
+    toast.show("No new notifications", "info");
+  };
+
+  const onSettings = () => {
+    toast.show("Settings coming soon", "info");
+  };
+
+  const onEditProfile = () => {
+    toast.show("Edit profile coming soon", "info");
+  };
+
+  const onChangeAvatar = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        toast.show("Photo permission needed", "error");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+      if (result.canceled) return;
+      toast.show("Profile photo updated", "success");
+    } catch (e: any) {
+      toast.show(e.message || "Could not update photo", "error");
+    }
+  };
+
+  const onStatPress = (stat: string) => {
+    switch (stat) {
+      case "Saved":
+        router.push("/favorites" as any);
+        break;
+      case "Messages":
+        router.push("/chat" as any);
+        break;
+      case "Visited":
+        router.push("/(tabs)/search");
+        break;
+      case "Alerts":
+        toast.show("No new alerts", "info");
+        break;
+    }
+  };
+
+  const onViewBenefits = () => {
+    toast.show("Premium benefits: Priority listing, Verified badge, Advanced filters, Chat support", "info");
+  };
+
+  const onMenuPress = (item: typeof MENU_ITEMS[number]) => {
+    if (item.route) {
+      router.push(item.route as any);
+    } else {
+      toast.show(`${item.label} coming soon`, "info");
+    }
+  };
+
+  const onLogout = async () => {
+    await logout();
+    router.replace("/onboarding");
+  };
 
   return (
     <SafeAreaView style={s.container} edges={["top"]} testID="profile-screen">
@@ -41,18 +114,18 @@ export default function Profile() {
             </View>
           </View>
           <View style={s.headerRight}>
-            <Pressable style={s.headerIcon}>
+            <Pressable style={s.headerIcon} onPress={onNotifications}>
               <Ionicons name="notifications-outline" size={22} color="#1a1a1a" />
               <View style={s.badge}><Text style={s.badgeTxt}>3</Text></View>
             </Pressable>
-            <Pressable style={s.headerIcon}>
+            <Pressable style={s.headerIcon} onPress={onSettings}>
               <Ionicons name="settings-outline" size={22} color="#1a1a1a" />
             </Pressable>
           </View>
         </View>
 
         {/* ── User Card ── */}
-        <View style={s.userCard}>
+        <Pressable style={s.userCard} onPress={onEditProfile}>
           <View style={s.avatarWrap}>
             {user.avatar ? (
               <Image source={user.avatar} style={s.avatar} contentFit="cover" />
@@ -61,9 +134,9 @@ export default function Profile() {
                 <Text style={s.avatarInitial}>{user.name.charAt(0).toUpperCase()}</Text>
               </View>
             )}
-            <View style={s.cameraBtn}>
+            <Pressable style={s.cameraBtn} onPress={onChangeAvatar}>
               <Ionicons name="camera" size={12} color="#fff" />
-            </View>
+            </Pressable>
           </View>
 
           <View style={s.userInfo}>
@@ -88,38 +161,38 @@ export default function Profile() {
               </View>
             )}
           </View>
-        </View>
+        </Pressable>
 
         {/* ── Stats Row ── */}
         <View style={s.statsRow}>
-          <View style={s.statItem}>
+          <Pressable style={s.statItem} onPress={() => onStatPress("Saved")}>
             <View style={s.statIconWrap}>
               <Ionicons name="heart-outline" size={20} color="#2E7D32" />
             </View>
             <Text style={s.statNumber}>{savedCount}</Text>
             <Text style={s.statLabel}>Saved</Text>
-          </View>
-          <View style={s.statItem}>
+          </Pressable>
+          <Pressable style={s.statItem} onPress={() => onStatPress("Visited")}>
             <View style={s.statIconWrap}>
               <Ionicons name="home-outline" size={20} color="#2E7D32" />
             </View>
             <Text style={s.statNumber}>23</Text>
             <Text style={s.statLabel}>Visited</Text>
-          </View>
-          <View style={s.statItem}>
+          </Pressable>
+          <Pressable style={s.statItem} onPress={() => onStatPress("Messages")}>
             <View style={s.statIconWrap}>
               <Ionicons name="chatbubble-outline" size={20} color="#2E7D32" />
             </View>
             <Text style={s.statNumber}>7</Text>
             <Text style={s.statLabel}>Messages</Text>
-          </View>
-          <View style={s.statItem}>
+          </Pressable>
+          <Pressable style={s.statItem} onPress={() => onStatPress("Alerts")}>
             <View style={s.statIconWrap}>
               <Ionicons name="notifications-outline" size={20} color="#2E7D32" />
             </View>
             <Text style={s.statNumber}>3</Text>
             <Text style={s.statLabel}>Alerts</Text>
-          </View>
+          </Pressable>
         </View>
 
         {/* ── Premium Banner ── */}
@@ -138,7 +211,7 @@ export default function Profile() {
               <Text style={s.premiumSub}>You have unlocked all premium features.</Text>
             </View>
           </View>
-          <Pressable style={s.benefitsBtn}>
+          <Pressable style={s.benefitsBtn} onPress={onViewBenefits}>
             <Text style={s.benefitsTxt}>View Benefits</Text>
             <Ionicons name="arrow-forward" size={14} color="#2E7D32" />
           </Pressable>
@@ -151,7 +224,7 @@ export default function Profile() {
         {/* ── Menu List ── */}
         <View style={s.menuList}>
           {MENU_ITEMS.map((item, i) => (
-            <Pressable key={i} style={s.menuItem}>
+            <Pressable key={i} style={s.menuItem} onPress={() => onMenuPress(item)}>
               <View style={s.menuIconWrap}>
                 <Ionicons name={item.icon as any} size={20} color="#2E7D32" />
               </View>
@@ -167,7 +240,7 @@ export default function Profile() {
         {/* ── Logout ── */}
         <Pressable
           style={s.logoutBtn}
-          onPress={async () => { await logout(); router.replace("/onboarding"); }}
+          onPress={onLogout}
           testID="profile-logout"
         >
           <Ionicons name="log-out-outline" size={20} color="#E53935" />

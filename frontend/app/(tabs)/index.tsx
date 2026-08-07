@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, RefreshControl, ActivityIndicator, Dimensions, Image } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, RefreshControl, ActivityIndicator, Dimensions, Image, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
 import { api, Property } from "@/src/lib/api";
 import { PropertyCard } from "@/src/components/PropertyCard";
+import { useFavorites } from "@/src/lib/favorites";
+import { useToast } from "@/src/lib/toast";
 import { useScrollToTop } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
@@ -37,12 +39,12 @@ const BANNERS = [
 
 // Category items
 const CATEGORIES = [
-  { icon: "home-outline", label: "Buy", color: "#E8F5E9" },
-  { icon: "key-outline", label: "Rent", color: "#FFF3E0" },
-  { icon: "people-outline", label: "PG/Co-living", color: "#E3F2FD" },
-  { icon: "business-outline", label: "Commercial", color: "#F3E5F5" },
-  { icon: "map-outline", label: "Plots", color: "#E0F7FA" },
-  { icon: "sparkles-outline", label: "New Projects", color: "#FCE4EC" },
+  { icon: "home-outline", label: "Buy", color: "#E8F5E9", filter: "buy" },
+  { icon: "key-outline", label: "Rent", color: "#FFF3E0", filter: "rent" },
+  { icon: "people-outline", label: "PG/Co-living", color: "#E3F2FD", filter: "pg" },
+  { icon: "business-outline", label: "Commercial", color: "#F3E5F5", filter: "commercial" },
+  { icon: "map-outline", label: "Plots", color: "#E0F7FA", filter: "plot" },
+  { icon: "sparkles-outline", label: "New Projects", color: "#FCE4EC", filter: "new" },
 ];
 
 // Popular locations
@@ -65,6 +67,8 @@ const TRUST_BADGES = [
 export default function Home() {
   const { user } = useAuth();
   const router = useRouter();
+  const { ids, toggle } = useFavorites();
+  const toast = useToast();
   const isLandlord = user?.role === "landlord";
 
   const [items, setItems] = useState<Property[]>([]);
@@ -86,6 +90,31 @@ export default function Home() {
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  // Toggle favorite for a property
+  const onFav = async (propertyId: string) => {
+    try {
+      const now = await toggle(propertyId);
+      toast.show(now ? "Saved to favourites" : "Removed from favourites", "success");
+    } catch (err: any) {
+      toast.show(err.message || "Could not update", "error");
+    }
+  };
+
+  // Navigate to notifications
+  const onNotifications = () => {
+    toast.show("No new notifications", "info");
+  };
+
+  // Navigate to search with category filter
+  const onCategory = (filter: string) => {
+    router.push("/(tabs)/search");
+  };
+
+  // Banner CTA actions
+  const onBannerCta = (idx: number) => {
+    router.push("/(tabs)/search");
+  };
 
   // Landlord view — keep the old simple listing
   if (isLandlord) {
@@ -130,7 +159,7 @@ export default function Home() {
               <Text style={styles.logoSub}>Find Your Dream Property</Text>
             </View>
           </View>
-          <Pressable style={styles.bellBtn}>
+          <Pressable style={styles.bellBtn} onPress={onNotifications}>
             <Ionicons name="notifications-outline" size={24} color="#1a1a1a" />
             <View style={styles.bellBadge}><Text style={styles.bellBadgeTxt}>5</Text></View>
           </Pressable>
@@ -140,9 +169,9 @@ export default function Home() {
         <Pressable style={styles.searchBar} onPress={() => router.push("/(tabs)/search")}>
           <Ionicons name="search" size={20} color="#999" />
           <Text style={styles.searchPlaceholder}>Search location, property or keyword...</Text>
-          <View style={styles.filterBtn}>
+          <Pressable style={styles.filterBtn} onPress={() => router.push("/(tabs)/search")}>
             <Ionicons name="options-outline" size={18} color="#fff" />
-          </View>
+          </Pressable>
         </Pressable>
 
         {/* ── Hero Banner Carousel ── */}
@@ -161,7 +190,7 @@ export default function Home() {
                   <View style={styles.bannerTag}><Text style={styles.bannerTagTxt}>{b.tag}</Text></View>
                   <Text style={styles.bannerTitle}>{b.title}</Text>
                   <Text style={styles.bannerDesc}>{b.desc}</Text>
-                  <Pressable style={styles.bannerCta}>
+                  <Pressable style={styles.bannerCta} onPress={() => onBannerCta(i)}>
                     <Text style={styles.bannerCtaTxt}>{b.cta}</Text>
                     <Ionicons name="arrow-forward" size={16} color="#1a1a1a" />
                   </Pressable>
@@ -179,7 +208,7 @@ export default function Home() {
         {/* ── Categories ── */}
         <View style={styles.catRow}>
           {CATEGORIES.map((cat, i) => (
-            <Pressable key={i} style={styles.catItem} onPress={() => router.push("/(tabs)/search")}>
+            <Pressable key={i} style={styles.catItem} onPress={() => onCategory(cat.filter)}>
               <View style={[styles.catIcon, { backgroundColor: cat.color }]}>
                 <Ionicons name={cat.icon as any} size={24} color="#2E7D32" />
               </View>
@@ -200,41 +229,48 @@ export default function Home() {
           <ActivityIndicator color="#2E7D32" style={{ marginVertical: 20 }} />
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
-            {items.slice(0, 5).map(item => (
-              <Pressable key={item.property_id} style={styles.featCard} onPress={() => router.push(`/property/${item.property_id}` as any)}>
-                <Image source={{ uri: item.images[0] || "https://via.placeholder.com/200" }} style={styles.featImage} />
-                <View style={styles.featBadge}><Text style={styles.featBadgeTxt}>Featured</Text></View>
-                <Pressable style={styles.featHeart}>
-                  <Ionicons name="heart-outline" size={18} color="#fff" />
-                </Pressable>
-                <View style={styles.featInfo}>
-                  <Text style={styles.featPrice}>₹{item.price.toLocaleString("en-IN")}</Text>
-                  <Text style={styles.featName} numberOfLines={1}>{item.title}</Text>
-                  <View style={styles.featLocRow}>
-                    <Ionicons name="location-outline" size={12} color="#666" />
-                    <Text style={styles.featLoc} numberOfLines={1}>{item.location}</Text>
-                  </View>
-                  <View style={styles.featStats}>
-                    <View style={styles.featStat}>
-                      <Ionicons name="bed-outline" size={14} color="#666" />
-                      <Text style={styles.featStatTxt}>{item.bedrooms} Beds</Text>
-                    </View>
-                    <View style={styles.featStat}>
-                      <Ionicons name="water-outline" size={14} color="#666" />
-                      <Text style={styles.featStatTxt}>{item.bathrooms} Baths</Text>
-                    </View>
-                    <View style={styles.featStat}>
-                      <Ionicons name="resize-outline" size={14} color="#666" />
-                      <Text style={styles.featStatTxt}>1450 Sq.ft</Text>
-                    </View>
-                  </View>
-                  <Pressable style={styles.viewBtn} onPress={() => router.push(`/property/${item.property_id}` as any)}>
-                    <Text style={styles.viewBtnTxt}>View Details</Text>
-                    <Ionicons name="arrow-forward" size={14} color="#fff" />
+            {items.slice(0, 5).map(item => {
+              const isFav = ids.has(item.property_id);
+              return (
+                <Pressable key={item.property_id} style={styles.featCard} onPress={() => router.push(`/property/${item.property_id}` as any)}>
+                  <Image source={{ uri: item.images[0] || "https://via.placeholder.com/200" }} style={styles.featImage} />
+                  <View style={styles.featBadge}><Text style={styles.featBadgeTxt}>Featured</Text></View>
+                  <Pressable
+                    style={[styles.featHeart, isFav && styles.featHeartActive]}
+                    onPress={() => onFav(item.property_id)}
+                    hitSlop={8}
+                  >
+                    <Ionicons name={isFav ? "heart" : "heart-outline"} size={18} color={isFav ? "#E53935" : "#fff"} />
                   </Pressable>
-                </View>
-              </Pressable>
-            ))}
+                  <View style={styles.featInfo}>
+                    <Text style={styles.featPrice}>₹{item.price.toLocaleString("en-IN")}</Text>
+                    <Text style={styles.featName} numberOfLines={1}>{item.title}</Text>
+                    <View style={styles.featLocRow}>
+                      <Ionicons name="location-outline" size={12} color="#666" />
+                      <Text style={styles.featLoc} numberOfLines={1}>{item.location}</Text>
+                    </View>
+                    <View style={styles.featStats}>
+                      <View style={styles.featStat}>
+                        <Ionicons name="bed-outline" size={14} color="#666" />
+                        <Text style={styles.featStatTxt}>{item.bedrooms} Beds</Text>
+                      </View>
+                      <View style={styles.featStat}>
+                        <Ionicons name="water-outline" size={14} color="#666" />
+                        <Text style={styles.featStatTxt}>{item.bathrooms} Baths</Text>
+                      </View>
+                      <View style={styles.featStat}>
+                        <Ionicons name="resize-outline" size={14} color="#666" />
+                        <Text style={styles.featStatTxt}>1450 Sq.ft</Text>
+                      </View>
+                    </View>
+                    <Pressable style={styles.viewBtn} onPress={() => router.push(`/property/${item.property_id}` as any)}>
+                      <Text style={styles.viewBtnTxt}>View Details</Text>
+                      <Ionicons name="arrow-forward" size={14} color="#fff" />
+                    </Pressable>
+                  </View>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         )}
 
@@ -329,6 +365,7 @@ const styles = StyleSheet.create({
   featBadge: { position: "absolute", top: 10, left: 10, backgroundColor: "#2E7D32", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
   featBadgeTxt: { color: "#fff", fontSize: 10, fontWeight: "600" },
   featHeart: { position: "absolute", top: 10, right: 10, width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center" },
+  featHeartActive: { backgroundColor: "#fff" },
   featInfo: { padding: 12 },
   featPrice: { fontSize: 18, fontWeight: "700", color: "#2E7D32" },
   featName: { fontSize: 14, fontWeight: "600", color: "#1a1a1a", marginTop: 2 },
