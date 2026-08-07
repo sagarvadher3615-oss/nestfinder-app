@@ -257,6 +257,42 @@ async def reset_password(inp: ResetPasswordIn):
     return {"ok": True, "message": "Password updated successfully"}
 
 
+class ProfileUpdateIn(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    gender: Optional[str] = None
+    dob: Optional[str] = None
+    city: Optional[str] = None
+    bio: Optional[str] = None
+    avatar: Optional[str] = None
+
+
+@api.patch("/auth/profile")
+async def update_profile(body: ProfileUpdateIn, user: User = Depends(get_current_user)):
+    updates = {}
+    if body.name and body.name.strip():
+        updates["name"] = body.name.strip()
+    if body.phone is not None:
+        updates["phone"] = body.phone.strip() if body.phone else None
+    if body.gender is not None:
+        if body.gender and body.gender.lower() not in ("male", "female", "other", ""):
+            raise HTTPException(status_code=400, detail="Gender must be male, female, or other")
+        updates["gender"] = body.gender.lower() if body.gender else None
+    if body.dob is not None:
+        updates["dob"] = body.dob if body.dob else None
+    if body.city is not None:
+        updates["city"] = body.city.strip() if body.city else None
+    if body.bio is not None:
+        updates["bio"] = body.bio.strip() if body.bio else None
+    if body.avatar is not None:
+        updates["avatar"] = body.avatar if body.avatar else None
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.users.update_one({"user_id": user.user_id}, {"$set": updates})
+    updated = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "password_hash": 0})
+    return updated
+
+
 @api.patch("/auth/role")
 async def update_role(body: dict, user: User = Depends(get_current_user)):
     role = body.get("role")
