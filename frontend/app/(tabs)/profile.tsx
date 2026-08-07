@@ -43,7 +43,7 @@ export default function Profile() {
   };
 
   const onEditProfile = () => {
-    toast.show("Edit profile coming soon", "info");
+    router.push("/edit-profile" as any);
   };
 
   const onChangeAvatar = async () => {
