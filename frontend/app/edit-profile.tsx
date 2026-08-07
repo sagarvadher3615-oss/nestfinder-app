@@ -41,22 +41,65 @@ export default function EditProfile() {
 
   // ── Pick avatar ────────────────────────────────────────────────────────────
   const pickAvatar = async () => {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        toast.show("Photo permission is required", "error");
+    // Show options: Camera or Gallery
+    const choice = await new Promise<"camera" | "gallery" | null>((resolve) => {
+      if (Platform.OS === "web") {
+        // Web doesn't have camera, go straight to gallery
+        resolve("gallery");
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.6,
-        allowsEditing: true,
-        aspect: [1, 1],
-      });
-      if (result.canceled) return;
-      const uri = result.assets[0].uri;
-      setNewAvatarUri(uri);
-      setAvatar(uri);
+      // On mobile, use Alert to let user choose
+      const { Alert } = require("react-native");
+      Alert.alert(
+        "Profile Photo",
+        "Choose how to set your profile picture",
+        [
+          { text: "Take Photo", onPress: () => resolve("camera") },
+          { text: "Choose from Gallery", onPress: () => resolve("gallery") },
+          { text: "Cancel", style: "cancel", onPress: () => resolve(null) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(null) }
+      );
+    });
+
+    if (!choice) return;
+
+    try {
+      if (choice === "camera") {
+        const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!camPerm.granted) {
+          toast.show("Camera permission is required", "error");
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+        });
+        if (result.canceled) return;
+        const uri = result.assets[0].uri;
+        setNewAvatarUri(uri);
+        setAvatar(uri);
+        toast.show("Photo captured! You can crop and adjust it.", "success");
+      } else {
+        const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!libPerm.granted) {
+          toast.show("Photo permission is required", "error");
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+          allowsMultipleSelection: false,
+        });
+        if (result.canceled) return;
+        const uri = result.assets[0].uri;
+        setNewAvatarUri(uri);
+        setAvatar(uri);
+        toast.show("Photo selected! Crop applied.", "success");
+      }
     } catch (e: any) {
       toast.show(e.message || "Could not pick image", "error");
     }
@@ -141,6 +184,7 @@ export default function EditProfile() {
               </View>
             </Pressable>
             <Text style={s.changeTxt}>Tap to change photo</Text>
+            <Text style={s.cropHint}>You can crop and adjust after selecting</Text>
           </View>
 
           {/* ── Form Fields ── */}
@@ -346,6 +390,7 @@ const s = StyleSheet.create({
     borderColor: "#fff",
   },
   changeTxt: { fontSize: 12, color: "#666", marginTop: 8 },
+  cropHint: { fontSize: 11, color: "#999", marginTop: 2 },
 
   // Form
   form: { paddingHorizontal: 16 },
