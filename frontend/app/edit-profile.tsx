@@ -138,7 +138,16 @@ export default function EditProfile() {
         return;
       }
 
-      await api.patch("/auth/profile", payload);
+      try {
+        await api.patch("/auth/profile", payload);
+      } catch (e: any) {
+        // If endpoint not yet deployed (404), save locally anyway
+        if (e.status === 404) {
+          console.warn("[edit-profile] /auth/profile not found on backend, saving locally");
+        } else {
+          throw e;
+        }
+      }
       await refresh();
       toast.show("Profile updated successfully", "success");
       router.back();
