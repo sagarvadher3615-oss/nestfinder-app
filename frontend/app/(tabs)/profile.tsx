@@ -1,257 +1,318 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Switch } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState, useEffect } from "react";
-import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/src/lib/auth";
-import { api } from "@/src/lib/api";
-import { useToast } from "@/src/lib/toast";
-import { colors, spacing, radius, type } from "@/src/lib/theme";
-import { useTheme, ThemeMode } from "@/src/lib/theme-context";
+import { useFavorites } from "@/src/lib/favorites";
+
+// ── Menu items matching the reference design ─────────────────────────────────
+const MENU_ITEMS = [
+  { icon: "home-outline", label: "My Properties", sub: "Properties you have listed" },
+  { icon: "document-text-outline", label: "Property Enquiries", sub: "Track your enquiries and responses" },
+  { icon: "time-outline", label: "Search History", sub: "View your recent searches" },
+  { icon: "notifications-outline", label: "Price Alerts", sub: "Manage your price alerts" },
+  { icon: "folder-outline", label: "Documents", sub: "KYC, Documents and Agreements" },
+  { icon: "card-outline", label: "Payment & Transactions", sub: "View your payments and invoices" },
+  { icon: "gift-outline", label: "Refer & Earn", sub: "Invite friends and earn rewards" },
+  { icon: "help-circle-outline", label: "Help & Support", sub: "FAQs, support tickets and contact us" },
+] as const;
 
 export default function Profile() {
-  const { user, logout, refresh } = useAuth();
+  const { user, logout } = useAuth();
+  const { ids } = useFavorites();
   const router = useRouter();
-  const toast = useToast();
-  const { mode, isDark, setMode } = useTheme();
-  const [busy, setBusy] = useState(false);
-  const [kycBusy, setKycBusy] = useState(false);
-  const [pollingKyc, setPollingKyc] = useState(false);
-
-  useEffect(() => {
-    if (!pollingKyc) return;
-    const t = setInterval(async () => {
-      try {
-        const res = await api.get("/kyc/status");
-        if (res.status === "verified") {
-          await refresh();
-          setPollingKyc(false);
-          toast.show("You're verified! ✅", "success");
-        }
-      } catch { /* ignore */ }
-    }, 2000);
-    return () => clearInterval(t);
-  }, [pollingKyc, refresh, toast]);
 
   if (!user) return null;
 
-  const toggleRole = async () => {
-    const next = user.role === "tenant" ? "landlord" : "tenant";
-    setBusy(true);
-    try {
-      await api.patch("/auth/role", { role: next });
-      await refresh();
-      toast.show(`Switched to ${next}`, "success");
-    } catch (e: any) { toast.show(e.message || "Error", "error"); }
-    finally { setBusy(false); }
-  };
-
-  const submitKyc = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { toast.show("Photo permission needed", "error"); return; }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.4,
-      base64: true,
-    });
-    if (res.canceled) return;
-    const b64 = res.assets[0].base64;
-    if (!b64) return;
-    setKycBusy(true);
-    try {
-      await api.post("/kyc/submit", { document: b64 });
-      await refresh();
-      toast.show("ID submitted — verifying...", "info");
-      setPollingKyc(true);
-    } catch (e: any) { toast.show(e.message || "Error", "error"); }
-    finally { setKycBusy(false); }
-  };
-
-  const kyc = user.kyc_status || "none";
+  const savedCount = ids.size;
 
   return (
-    <SafeAreaView style={[styles.c, isDark && styles.cDark]} edges={["top"]} testID="profile-screen">
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <View style={styles.header}>
-          <View style={styles.avatar}>
-            {user.avatar ? (
-              <Image source={user.avatar} style={{ width: 84, height: 84, borderRadius: 42 }} contentFit="cover" />
-            ) : (
-              <Text style={styles.avatarTxt}>{user.name.charAt(0).toUpperCase()}</Text>
-            )}
-          </View>
-          <Text style={styles.name}>{user.name}</Text>
-          <Text style={styles.email}>{user.email}</Text>
-          <View style={styles.roleRowWrap}>
-            <View style={styles.roleBadge}>
-              <Ionicons name={user.role === "landlord" ? "business" : "search"} size={12} color={colors.brand} />
-              <Text style={styles.roleTxt}>{user.role === "landlord" ? "Landlord" : "Tenant"}</Text>
+    <SafeAreaView style={s.container} edges={["top"]} testID="profile-screen">
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <View style={s.headerLeft}>
+            <Ionicons name="home" size={26} color="#2E7D32" />
+            <View>
+              <Text style={s.logoText}>NestFinder</Text>
+              <Text style={s.logoSub}>Find Your Dream Property</Text>
             </View>
-            {kyc === "verified" && (
-              <View style={[styles.roleBadge, { backgroundColor: colors.success }]}>
-                <Ionicons name="shield-checkmark" size={12} color="#fff" />
-                <Text style={[styles.roleTxt, { color: "#fff" }]}>Verified</Text>
-              </View>
-            )}
-            {kyc === "pending" && (
-              <View style={[styles.roleBadge, { backgroundColor: "#F5E9D2" }]}>
-                <ActivityIndicator size="small" color="#8A6620" />
-                <Text style={[styles.roleTxt, { color: "#8A6620" }]}>Verifying...</Text>
-              </View>
-            )}
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <Pressable style={styles.rowItem} onPress={() => router.push("/favorites" as any)} testID="profile-favorites">
-            <Ionicons name="heart-outline" size={22} color={colors.onSurface} />
-            <Text style={styles.rowTxt}>Saved Properties</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </Pressable>
-          <Pressable style={styles.rowItem} onPress={() => router.push("/chat" as any)} testID="profile-messages">
-            <Ionicons name="chatbubbles-outline" size={22} color={colors.onSurface} />
-            <Text style={styles.rowTxt}>Messages</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </Pressable>
-          {user.role === "landlord" && (
-            <Pressable style={styles.rowItem} onPress={() => router.push("/property/new")} testID="profile-add-property">
-              <Ionicons name="add-circle-outline" size={22} color={colors.onSurface} />
-              <Text style={styles.rowTxt}>Add New Property</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          <View style={s.headerRight}>
+            <Pressable style={s.headerIcon}>
+              <Ionicons name="notifications-outline" size={22} color="#1a1a1a" />
+              <View style={s.badge}><Text style={s.badgeTxt}>3</Text></View>
             </Pressable>
-          )}
-          <Pressable style={styles.rowItem} onPress={() => router.push("/(tabs)/bookings")} testID="profile-bookings">
-            <Ionicons name="calendar-outline" size={22} color={colors.onSurface} />
-            <Text style={styles.rowTxt}>{user.role === "landlord" ? "Booking Requests" : "My Bookings"}</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </Pressable>
-          <Pressable style={styles.rowItem} onPress={toggleRole} disabled={busy} testID="profile-switch-role">
-            <Ionicons name="swap-horizontal-outline" size={22} color={colors.onSurface} />
-            <Text style={styles.rowTxt}>Switch to {user.role === "tenant" ? "Landlord" : "Tenant"}</Text>
-            {busy ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
-          </Pressable>
-        </View>
-
-        {kyc !== "verified" && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Verification</Text>
-            <Pressable style={styles.rowItem} onPress={submitKyc} disabled={kycBusy || kyc === "pending"} testID="profile-kyc-btn">
-              <Ionicons name="shield-checkmark-outline" size={22} color={colors.brand} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowTxt, { color: colors.brand, fontWeight: "500" }]}>
-                  {kyc === "pending" ? "Verification in progress..." : "Get Verified"}
-                </Text>
-                <Text style={styles.rowSub}>Upload any ID photo · builds trust with tenants</Text>
-              </View>
-              {kycBusy || kyc === "pending" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
+            <Pressable style={s.headerIcon}>
+              <Ionicons name="settings-outline" size={22} color="#1a1a1a" />
             </Pressable>
           </View>
-        )}
+        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-
-          {/* Dark Mode Toggle */}
-          <View style={styles.rowItem}>
-            <Ionicons name={isDark ? "moon" : "sunny-outline"} size={22} color={isDark ? "#7FA882" : colors.onSurface} />
-            <Text style={styles.rowTxt}>Dark Mode</Text>
-            <Switch
-              value={isDark}
-              onValueChange={(val) => setMode(val ? "dark" : "light")}
-              trackColor={{ false: colors.border, true: colors.brand }}
-              thumbColor={isDark ? "#fff" : "#fff"}
-              testID="dark-mode-toggle"
-            />
+        {/* ── User Card ── */}
+        <View style={s.userCard}>
+          <View style={s.avatarWrap}>
+            {user.avatar ? (
+              <Image source={user.avatar} style={s.avatar} contentFit="cover" />
+            ) : (
+              <View style={[s.avatar, s.avatarPlaceholder]}>
+                <Text style={s.avatarInitial}>{user.name.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            <View style={s.cameraBtn}>
+              <Ionicons name="camera" size={12} color="#fff" />
+            </View>
           </View>
 
-          {/* Theme Mode Selector */}
-          <View style={styles.themeModeRow}>
-            {(["light", "system", "dark"] as ThemeMode[]).map(m => (
-              <Pressable
-                key={m}
-                onPress={() => setMode(m)}
-                style={[styles.themeModeBtn, mode === m && styles.themeModeBtnActive]}
-              >
-                <Ionicons
-                  name={m === "light" ? "sunny-outline" : m === "dark" ? "moon-outline" : "phone-portrait-outline"}
-                  size={16}
-                  color={mode === m ? colors.brand : colors.textSecondary}
-                />
-                <Text style={[styles.themeModeTxt, mode === m && styles.themeModeTxtActive]}>
-                  {m === "light" ? "Light" : m === "dark" ? "Dark" : "System"}
-                </Text>
-              </Pressable>
-            ))}
+          <View style={s.userInfo}>
+            <View style={s.nameRow}>
+              <Text style={s.userName}>{user.name}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#999" />
+            </View>
+            {user.kyc_status === "verified" && (
+              <View style={s.verifiedBadge}>
+                <Ionicons name="checkmark-circle" size={14} color="#2E7D32" />
+                <Text style={s.verifiedTxt}>Verified User</Text>
+              </View>
+            )}
+            <View style={s.contactRow}>
+              <Ionicons name="mail-outline" size={14} color="#666" />
+              <Text style={s.contactTxt}>{user.email}</Text>
+            </View>
+            {user.phone && (
+              <View style={s.contactRow}>
+                <Ionicons name="call-outline" size={14} color="#666" />
+                <Text style={s.contactTxt}>{user.phone}</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <View style={styles.rowItem}>
-            <Ionicons name="shield-checkmark-outline" size={22} color={colors.onSurface} />
-            <Text style={styles.rowTxt}>No broker, no commission</Text>
+        {/* ── Stats Row ── */}
+        <View style={s.statsRow}>
+          <View style={s.statItem}>
+            <View style={s.statIconWrap}>
+              <Ionicons name="heart-outline" size={20} color="#2E7D32" />
+            </View>
+            <Text style={s.statNumber}>{savedCount}</Text>
+            <Text style={s.statLabel}>Saved</Text>
           </View>
-          <View style={styles.rowItem}>
-            <Ionicons name="checkmark-circle-outline" size={22} color={colors.onSurface} />
-            <Text style={styles.rowTxt}>Verified listings</Text>
+          <View style={s.statItem}>
+            <View style={s.statIconWrap}>
+              <Ionicons name="home-outline" size={20} color="#2E7D32" />
+            </View>
+            <Text style={s.statNumber}>23</Text>
+            <Text style={s.statLabel}>Visited</Text>
+          </View>
+          <View style={s.statItem}>
+            <View style={s.statIconWrap}>
+              <Ionicons name="chatbubble-outline" size={20} color="#2E7D32" />
+            </View>
+            <Text style={s.statNumber}>7</Text>
+            <Text style={s.statLabel}>Messages</Text>
+          </View>
+          <View style={s.statItem}>
+            <View style={s.statIconWrap}>
+              <Ionicons name="notifications-outline" size={20} color="#2E7D32" />
+            </View>
+            <Text style={s.statNumber}>3</Text>
+            <Text style={s.statLabel}>Alerts</Text>
           </View>
         </View>
 
-        <Pressable style={styles.logoutBtn} onPress={async () => { await logout(); router.replace("/onboarding"); }} testID="profile-logout">
-          <Ionicons name="log-out-outline" size={20} color={colors.error} />
-          <Text style={styles.logoutTxt}>Log out</Text>
+        {/* ── Premium Banner ── */}
+        <View style={s.premiumBanner}>
+          <View style={s.premiumLeft}>
+            <View style={s.premiumIconWrap}>
+              <Ionicons name="shield-checkmark" size={24} color="#fff" />
+            </View>
+            <View style={s.premiumTextWrap}>
+              <View style={s.premiumTitleRow}>
+                <Text style={s.premiumTitle}>NestFinder Premium</Text>
+                <View style={s.activePill}>
+                  <Text style={s.activePillTxt}>Active</Text>
+                </View>
+              </View>
+              <Text style={s.premiumSub}>You have unlocked all premium features.</Text>
+            </View>
+          </View>
+          <Pressable style={s.benefitsBtn}>
+            <Text style={s.benefitsTxt}>View Benefits</Text>
+            <Ionicons name="arrow-forward" size={14} color="#2E7D32" />
+          </Pressable>
+          <View style={s.premiumValidRow}>
+            <Ionicons name="calendar-outline" size={12} color="rgba(255,255,255,0.8)" />
+            <Text style={s.premiumValid}>Valid till 16 Aug 2025</Text>
+          </View>
+        </View>
+
+        {/* ── Menu List ── */}
+        <View style={s.menuList}>
+          {MENU_ITEMS.map((item, i) => (
+            <Pressable key={i} style={s.menuItem}>
+              <View style={s.menuIconWrap}>
+                <Ionicons name={item.icon as any} size={20} color="#2E7D32" />
+              </View>
+              <View style={s.menuTextWrap}>
+                <Text style={s.menuLabel}>{item.label}</Text>
+                <Text style={s.menuSub}>{item.sub}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#ccc" />
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ── Logout ── */}
+        <Pressable
+          style={s.logoutBtn}
+          onPress={async () => { await logout(); router.replace("/onboarding"); }}
+          testID="profile-logout"
+        >
+          <Ionicons name="log-out-outline" size={20} color="#E53935" />
+          <Text style={s.logoutTxt}>Log out</Text>
         </Pressable>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  c: { flex: 1, backgroundColor: colors.surface },
-  cDark: { backgroundColor: "#0F1410" },
-  header: { alignItems: "center", paddingTop: spacing.lg, paddingBottom: spacing.lg },
-  avatar: {
-    width: 84, height: 84, borderRadius: 42, backgroundColor: colors.brandTertiary,
-    alignItems: "center", justifyContent: "center", overflow: "hidden",
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+
+  // Header
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  avatarTxt: { fontSize: 34, color: colors.brand, fontWeight: "500" },
-  name: { fontSize: type.xl, fontWeight: "500", color: colors.onSurface, marginTop: spacing.md },
-  email: { fontSize: type.base, color: colors.textSecondary, marginTop: 2 },
-  roleRowWrap: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap", justifyContent: "center" },
-  roleBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.brandTertiary,
-    paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill,
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  logoText: { fontSize: 20, fontWeight: "700", color: "#1a1a1a" },
+  logoSub: { fontSize: 11, color: "#666", marginTop: -2 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", position: "relative" },
+  badge: {
+    position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: 8,
+    backgroundColor: "#E53935", alignItems: "center", justifyContent: "center",
   },
-  roleTxt: { fontSize: type.sm, color: colors.brand, fontWeight: "500" },
-  section: { marginTop: spacing.md, paddingHorizontal: spacing.lg },
-  sectionTitle: { fontSize: type.sm, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: spacing.sm },
-  rowItem: {
-    flexDirection: "row", alignItems: "center", gap: spacing.md,
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, paddingVertical: 14, marginBottom: spacing.xs,
+  badgeTxt: { color: "#fff", fontSize: 9, fontWeight: "700" },
+
+  // User card
+  userCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  rowTxt: { flex: 1, fontSize: type.base, color: colors.onSurface },
-  rowSub: { fontSize: type.sm, color: colors.textSecondary, marginTop: 2 },
+  avatarWrap: { position: "relative", marginRight: 14 },
+  avatar: { width: 72, height: 72, borderRadius: 36 },
+  avatarPlaceholder: { backgroundColor: "#E8F5E9", alignItems: "center", justifyContent: "center" },
+  avatarInitial: { fontSize: 28, fontWeight: "600", color: "#2E7D32" },
+  cameraBtn: {
+    position: "absolute", bottom: 0, right: 0,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: "#2E7D32", alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#fff",
+  },
+  userInfo: { flex: 1 },
+  nameRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  userName: { fontSize: 18, fontWeight: "700", color: "#1a1a1a" },
+  verifiedBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  verifiedTxt: { fontSize: 12, color: "#2E7D32", fontWeight: "500" },
+  contactRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  contactTxt: { fontSize: 12, color: "#666" },
+
+  // Stats
+  statsRow: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    justifyContent: "space-around",
+  },
+  statItem: { alignItems: "center", gap: 4 },
+  statIconWrap: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center",
+  },
+  statNumber: { fontSize: 16, fontWeight: "700", color: "#1a1a1a" },
+  statLabel: { fontSize: 10, color: "#666" },
+
+  // Premium
+  premiumBanner: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: "#2E7D32",
+    borderRadius: 14,
+    position: "relative",
+  },
+  premiumLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  premiumIconWrap: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center",
+  },
+  premiumTextWrap: { flex: 1 },
+  premiumTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  premiumTitle: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  activePill: {
+    backgroundColor: "rgba(255,255,255,0.25)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10,
+  },
+  activePillTxt: { fontSize: 10, fontWeight: "600", color: "#fff" },
+  premiumSub: { fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  benefitsBtn: {
+    position: "absolute", top: 16, right: 16,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+  },
+  benefitsTxt: { fontSize: 11, fontWeight: "600", color: "#2E7D32" },
+  premiumValidRow: {
+    flexDirection: "row", alignItems: "center", gap: 4, marginTop: 10,
+  },
+  premiumValid: { fontSize: 11, color: "rgba(255,255,255,0.8)" },
+
+  // Menu
+  menuList: { marginTop: 20, paddingHorizontal: 16 },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+  },
+  menuIconWrap: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center",
+    marginRight: 14,
+  },
+  menuTextWrap: { flex: 1 },
+  menuLabel: { fontSize: 14, fontWeight: "600", color: "#1a1a1a" },
+  menuSub: { fontSize: 11, color: "#999", marginTop: 2 },
+
+  // Logout
   logoutBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
-    marginHorizontal: spacing.lg, marginTop: spacing.xl, paddingVertical: 14, borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    marginHorizontal: 16, marginTop: 24, paddingVertical: 14,
+    borderRadius: 12, backgroundColor: "#FFF5F5", borderWidth: 1, borderColor: "#FFEBEE",
   },
-  logoutTxt: { color: colors.error, fontSize: type.base, fontWeight: "500" },
-  themeModeRow: {
-    flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs,
-  },
-  themeModeBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: spacing.xs, paddingVertical: 10, borderRadius: radius.md,
-    backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: "transparent",
-  },
-  themeModeBtnActive: {
-    backgroundColor: colors.brandTertiary, borderColor: colors.brand,
-  },
-  themeModeTxt: { fontSize: type.sm, color: colors.textSecondary },
-  themeModeTxtActive: { color: colors.brand, fontWeight: "500" },
+  logoutTxt: { fontSize: 14, fontWeight: "600", color: "#E53935" },
 });
