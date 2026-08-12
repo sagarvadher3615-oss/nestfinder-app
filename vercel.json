@@ -1,9 +1,0 @@
-{
-  "buildCommand": "cd frontend && npx expo export --platform web",
-  "outputDirectory": "frontend/dist",
-  "installCommand": "cd frontend && yarn install",
-  "framework": null,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
-  ]
-}
